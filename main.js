@@ -301,7 +301,8 @@ function applyDefaultStyle() {
   oceanLayers.attr("filter", null);
   oceanPattern.attr("opacity", null);
   oceanLayers.selectAll("path").attr("display", null);
-  styleOceanPattern.checked = true;
+  styleOceanPattern.value = "url(#pattern1)";
+  svg.select("#oceanic rect").attr("filter", "url(#pattern1)");
 
   // heightmap style
   terrs.attr("opacity", null).attr("filter", null).attr("mask", "url(#land)").attr("stroke", "none");

@@ -351,8 +351,8 @@ styleOceanFore.addEventListener("input", function() {
   styleOceanForeOutput.value = this.value;
 });
 
-styleOceanPattern.addEventListener("input", function() {
-  oceanPattern.attr("opacity", +this.checked);
+styleOceanPattern.addEventListener("change", function() {
+  svg.select("pattern#oceanic rect").attr("filter", this.value);
 });
 
 outlineLayersInput.addEventListener("change", function() {
