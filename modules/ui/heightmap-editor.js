@@ -24,7 +24,6 @@ function editHeightmap() {
 
   let edits = [];
   restartHistory();
-  editHeightmap.layers = getLayersState();
 
   if (modules.editHeightmap) return;
   modules.editHeightmap = true;
@@ -40,26 +39,19 @@ function editHeightmap() {
   document.getElementById("templateUndo").addEventListener("click", () => restoreHistory(edits.n-1));
   document.getElementById("templateRedo").addEventListener("click", () => restoreHistory(edits.n+1));
 
-  function getLayersState() {
-    const layers = [];
-    mapLayers.querySelectorAll("li").forEach(l => {
-      if (l.id === "toggleTexture" || l.id === "toggleScaleBar") return;
-      if (!l.classList.contains("buttonoff")) layers.push(l.id);
-    });
-    return layers;
-  }
-
   function enterHeightmapEditMode(type) {
+    editHeightmap.layers = getLayersState();
     customization = 1;
+    closeDialogs();
     tip('Heightmap edit mode is active. Click on "Exit Customization" to finalize the heightmap', true);
     customizationMenu.style.display = "block";
-    toolsContent.style.display = "none"; 
-    closeDialogs();
+    toolsContent.style.display = "none";
     heightmapEditMode.innerHTML = type;
-    
+
     if (type === "erase") {
-      terrs.attr("mask", null); 
+      terrs.attr("mask", null);
       undraw();
+      changeOnlyLand.checked = false;
     } else if (type === "keep") {
       viewbox.selectAll("#landmass, #lakes").attr("display", "none");
       changeOnlyLand.checked = true;
@@ -67,6 +59,7 @@ function editHeightmap() {
       terrs.attr("mask", null);
       defs.selectAll("#land, #water").selectAll("path").remove();
       viewbox.selectAll("#coastline *, #lakes *, #oceanLayers path").remove();
+      changeOnlyLand.checked = false;
     }
 
     // hide convert and template buttons for the Keep mode
@@ -74,11 +67,20 @@ function editHeightmap() {
     convertImage.style.display = type === "keep" ? "none" : "inline-block";
 
     openBrushesPanel();
-    changePreset("landmass");
-    terrs.selectAll("*").remove();
     turnButtonOn("toggleHeight");
+    layersPreset.value = "heightmap";
+    layersPreset.disabled = true;
     mockHeightmap();
     viewbox.on("touchmove mousemove", moveCursor);
+  }
+
+  function getLayersState() {
+    const layers = [];
+    mapLayers.querySelectorAll("li").forEach(l => {
+      if (l.id === "toggleScaleBar") return;
+      if (!l.classList.contains("buttonoff")) {layers.push(l.id); l.click();}
+    });
+    return layers;
   }
 
   function moveCursor() {
@@ -88,13 +90,12 @@ function editHeightmap() {
     heightmapInfoCell.innerHTML = cell;
     heightmapInfoHeight.innerHTML = grid.cells.h[cell];
 
-    if (tooltip.innerHTML !== "") setTimeout(() => tip(``), 3000);
+    tip("Height: " + getFriendlyHeight(grid.cells.h[cell]));
 
     // move radius circle if drag mode is active
     const pressed = document.querySelector("#brushesButtons > button.pressed");
     if (!pressed) return;
-    const radius = brushRadius.valueAsNumber;
-    moveCircle(p[0], p[1], radius, "#333");
+    moveCircle(p[0], p[1], brushRadius.valueAsNumber, "#333");
   }
 
   // Exit customization mode
@@ -125,6 +126,7 @@ function editHeightmap() {
     changePreset("landmass");
     editHeightmap.layers.forEach(l => document.getElementById(l).click());
     restoreLayers();
+    layersPreset.disabled = false;
   }
 
   function regenerateErasedData() {
@@ -435,9 +437,9 @@ function editHeightmap() {
 
       const brush = document.querySelector("#brushesButtons > button.pressed").id;
       if (brush === "brushRaise") s.forEach(i => h[i] = h[i] < 20 ? 20 : lim(h[i] + power)); else
-      if (brush === "brushElevate") s.forEach((i,d) => h[i] = lim(h[i] + interpolate(d/(s.length-1)))); else
+      if (brush === "brushElevate") s.forEach((i,d) => h[i] = lim(h[i] + interpolate(d/Math.max(s.length-1, 1)))); else
       if (brush === "brushLower") s.forEach(i => h[i] = lim(h[i] - power)); else
-      if (brush === "brushDepress") s.forEach((i,d) => h[i] = lim(h[i] - interpolate(d/(s.length-1)))); else
+      if (brush === "brushDepress") s.forEach((i,d) => h[i] = lim(h[i] - interpolate(d/Math.max(s.length-1, 1)))); else
       if (brush === "brushAlign") s.forEach(i => h[i] = lim(h[start])); else
       if (brush === "brushSmooth") s.forEach(i => h[i] = rn((d3.mean(grid.cells.c[i].filter(i => land ? h[i] >= 20 : 1).map(c => h[c])) + h[i]*(10-power)) / (11-power),1)); else
       if (brush === "brushDisrupt") s.forEach(i => h[i] = h[i] < 17 ? h[i] : lim(h[i] + power/2 - Math.random()*power));

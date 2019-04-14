@@ -356,20 +356,22 @@ function drawPopulation() {
 }
 
 function toggleCells() {
-  if (!cells.selectAll("polygon").size()) {
+  if (!cells.selectAll("path").size()) {
     turnButtonOn("toggleCells");
     drawCells();
   } else {
-    cells.selectAll("polygon").remove();
+    cells.selectAll("path").remove();
     turnButtonOff("toggleCells");
   }
 }
 
 function drawCells() {
-  cells.selectAll("polygon").remove();
+  cells.selectAll("path").remove();
   const data = customization === 1 ? grid.cells.i : pack.cells.i;
   const polygon = customization === 1 ? getGridPolygon : getPackPolygon;
-  cells.selectAll("polygon").data(data).enter().append("polygon").attr("points", d => polygon(d));
+  let path = "";
+  data.forEach(i => path += "M" + polygon(i));
+  cells.append("path").attr("d", path);
 }
 
 function toggleCultures() {
@@ -541,12 +543,11 @@ function drawGrid() {
     const points = getHexGridPoints(size, type);
     const hex = "m" + getHex(size, type).slice(0, 4).join("l");
     const d = points.map(p => "M" + p + hex).join("");
-    gridOverlay.append("path").attr("d", d);   
+    gridOverlay.append("path").attr("d", d);
   } else if (type === "square") {
-    const x = d3.range(size, svgWidth, size);
-    const y = d3.range(size, svgHeight, size);
-    gridOverlay.append("g").selectAll("line").data(x).enter().append("line").attr("x1", d => d).attr("x2", d => d).attr("y1", 0).attr("y2", svgHeight);
-    gridOverlay.append("g").selectAll("line").data(y).enter().append("line").attr("y1", d => d).attr("y2", d => d).attr("x1", 0).attr("x2", svgWidth);
+    const pathX = d3.range(size, svgWidth, size).map(x => "M" + rn(x, 2) + ",0v" + svgHeight);
+    const pathY = d3.range(size, svgHeight, size).map(y => "M0," + rn(y, 2) + "h" + svgWidth);
+    gridOverlay.append("path").attr("d", pathX + pathY);
   }
 
   // calculate hexes centers
@@ -557,7 +558,7 @@ function drawGrid() {
     const ySpace = type === "pointyHex" ? rn(size * 3 / 2, 2) : rn(rt3 * size / 2, 2);
     const xSpace = type === "pointyHex" ? rn(rt3 * size, 2) : rn(size * 3, 2);
     for (let y = 0, l = 0; y < graphHeight+ySpace; y += ySpace, l++) {
-      for (let x = l % 2 ? 0 : off; x < graphWidth+xSpace; x += xSpace) {points.push([x, y]);}
+      for (let x = l % 2 ? 0 : off; x < graphWidth+xSpace; x += xSpace) {points.push([rn(x, 2), rn(y, 2)]);}
     }
     return points;
   }
@@ -574,7 +575,7 @@ function drawGrid() {
       const dx = rn(x1 - x0, 2);
       const dy = rn(y1 - y0, 2);
       x0 = x1, y0 = y1;
-      return [dx, dy];
+      return [rn(dx, 2), rn(dy, 2)];
     });
   }  
 

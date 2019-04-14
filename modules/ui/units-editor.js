@@ -1,6 +1,5 @@
 "use strict";
 function editUnits() {
-  if (customization) return;
   closeDialogs("#unitsEditor, .stable");
   $("#unitsEditor").dialog();
 
@@ -79,6 +78,8 @@ function editUnits() {
   function changeHeightExponent() {
     document.getElementById("heightExponent").value = this.value;
     document.getElementById("heightExponentSlider").value = this.value;
+    calculateTemperatures();
+    if (layerIsOn("toggleTemp")) drawTemp();
   }
 
   function changeScaleBarSize() {

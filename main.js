@@ -716,12 +716,12 @@ function calculateTemperatures() {
   const tEq = +temperatureEquatorInput.value;
   const tPole = +temperaturePoleInput.value;
   const eqY = +document.getElementById("equatorInput").value;
-  const eqD = +document.getElementById("equidistanceInput").value;  
+  const eqD = +document.getElementById("equidistanceInput").value;
 
   d3.range(0, cells.i.length, grid.cellsX).forEach(function(r) {
     const y = grid.points[r][1];
     const initTemp = tEq - Math.abs(y - eqY) / eqD * (tEq - tPole);
-    for (let i = r; i < r+grid.cellsX; i++)  {
+    for (let i = r; i < r+grid.cellsX; i++) {
       cells.temp[i] = initTemp - convertToFriendly(cells.h[i]);
     }
   });
@@ -1141,7 +1141,7 @@ function regenerateMap() {
   resetZoom(1000);
   generate();
   restoreLayers();
-  if ($("#worldConfigurator").is(":visible")) editWorld();  
+  if ($("#worldConfigurator").is(":visible")) editWorld();
 }
 
 // Clear the map

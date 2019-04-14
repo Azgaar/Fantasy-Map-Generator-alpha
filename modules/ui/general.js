@@ -106,7 +106,7 @@ function showMapTooltip(e, i, g) {
   if (layerIsOn("toggleBiomes") && pack.cells.biome[i]) tip("Biome: " + biomesData.name[pack.cells.biome[i]]); else
   if (layerIsOn("toggleStates") && pack.cells.state[i]) tip("State: " + pack.states[pack.cells.state[i]].name); else
   if (layerIsOn("toggleCultures") && pack.cells.culture[i]) tip("Culture: " + pack.cultures[pack.cells.culture[i]].name); else
-  if (layerIsOn("toggleHeight")) tip("Height: " + getFriendlyHeight(i));
+  if (layerIsOn("toggleHeight")) tip("Height: " + getFriendlyHeight(pack.cells.h[i]));
 }
 
 // get cell info on mouse move
@@ -117,7 +117,7 @@ function updateCellInfo(point, i, g) {
   infoCell.innerHTML = i;
   const unit = areaUnit.value === "square" ? " " + distanceUnit.value + "²" : " " + areaUnit.value;
   infoArea.innerHTML = cells.area[i] ? si(cells.area[i] * distanceScale.value ** 2) + unit : "n/a";
-  infoHeight.innerHTML = getFriendlyHeight(i) + " (" + cells.h[i] + ")";
+  infoHeight.innerHTML = getFriendlyHeight(cells.h[i]) + " (" + cells.h[i] + ")";
   infoTemp.innerHTML = convertTemperature(grid.cells.temp[g]);
   infoPrec.innerHTML = pack.cells.h[i] >= 20 ? getFriendlyPrecipitation(i) : "n/a";
   infoState.innerHTML = ifDefined(cells.state[i]) !== "no" ? pack.states[cells.state[i]].name + " (" + cells.state[i] + ")" : "n/a";
@@ -137,8 +137,7 @@ function ifDefined(v, r = "no", d) {
 }
 
 // get user-friendly (real-world) height value from map data
-function getFriendlyHeight(i) {
-  const h = pack.cells.h[i];
+function getFriendlyHeight(h) {
   const unit = heightUnit.value;
   let unitRatio = 3.281; // default calculations are in feet
   if (unit === "m") unitRatio = 1; // if meter
