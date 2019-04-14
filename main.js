@@ -115,7 +115,7 @@ setTimeout(showWelcomeMessage, 8000);
 function showWelcomeMessage() {
   // Changelog dialog window
   if (localStorage.getItem("version") != version) {
-    const link = 'https://www.reddit.com'; // announcement on Reddit
+    const link = 'https://www.reddit.com/r/FantasyMapGenerator/comments/bd2dma/update_the_new_version_alpha_is_published_v_07a'; // announcement on Reddit
     alertMessage.innerHTML = `The Fantasy Map Generator is updated up to version <b>${version}</b>.
       This is an <b>alpha</b> version released for testing purposes. Please do not use it for the actual map development.
 
