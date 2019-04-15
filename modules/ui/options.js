@@ -449,7 +449,7 @@ styleInputFont.addEventListener("change", function() {
   });
 });
 
-styleFontSize.addEventListener("input", function() {
+styleFontSize.addEventListener("change", function() {
   changeFontSize(+this.value);
 });
 
@@ -468,7 +468,7 @@ function changeFontSize(size) {
   styleFontSize.value = size;
 }
 
-styleRadiusInput.addEventListener("input", function() {
+styleRadiusInput.addEventListener("change", function() {
   changeRadius(+this.value);
 });
 
@@ -491,7 +491,7 @@ function changeRadius(size) {
   changeIconSize(size * 2, group); // change also anchor icons
 }
 
-styleIconSizeInput.addEventListener("input", function() {
+styleIconSizeInput.addEventListener("change", function() {
   changeIconSize(+this.value);
 });
 
