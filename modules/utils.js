@@ -338,10 +338,7 @@ void function addFindAll() {
 
 // normalization function
 function normalize(val, min, max) {
-  let normalized = (val - min) / (max - min);
-  if (normalized < 0) normalized = 0;
-  else if (normalized > 1) normalized = 1;
-  return normalized;
+  return Math.min(Math.max((val - min) / (max - min), 0), 1);
 }
 
 // return a random integer from min to max biased towards one end based on exponent distribution (the bigger ex the higher bias towards min)

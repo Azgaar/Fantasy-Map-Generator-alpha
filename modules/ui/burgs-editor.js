@@ -6,11 +6,6 @@ function editBurgs() {
   if (!layerIsOn("toggleLabels")) toggleLabels();
 
   const body = document.getElementById("burgsBody");
-  const cells = pack.cells;
-  const states = pack.states;
-  const burgs = pack.burgs;
-  const cultures = pack.cultures;
-
   updateFilter();
   burgsEditorAddLines();
 
@@ -36,20 +31,20 @@ function editBurgs() {
     const selectedState = stateFilter.value || 1;
     stateFilter.options.length = 0; // remove all options
     stateFilter.options.add(new Option("all", -1, false, selectedState == -1));
-    states.forEach(s => stateFilter.options.add(new Option(s.name, s.i, false, s.i == selectedState)));
+    pack.states.forEach(s => stateFilter.options.add(new Option(s.name, s.i, false, s.i == selectedState)));
 
     const cultureFilter = document.getElementById("burgsFilterCulture");
     const selectedCulture = cultureFilter.value || -1;
     cultureFilter.options.length = 0; // remove all options
     cultureFilter.options.add(new Option("all", -1, false, selectedCulture == -1));
-    cultures.forEach(c => cultureFilter.options.add(new Option(c.name, c.i, false, c.i == selectedCulture)));
+    pack.cultures.forEach(c => cultureFilter.options.add(new Option(c.name, c.i, false, c.i == selectedCulture)));
   }
 
   // add line for each state
   function burgsEditorAddLines() {
     const selectedState = +document.getElementById("burgsFilterState").value;
     const selectedCulture = +document.getElementById("burgsFilterCulture").value;
-    let filtered = burgs.filter(b => b.i && !b.removed); // all valid burgs
+    let filtered = pack.burgs.filter(b => b.i && !b.removed); // all valid burgs
     if (selectedState != -1) filtered = filtered.filter(b => b.state === selectedState); // filtered by state
     if (selectedCulture != -1) filtered = filtered.filter(b => b.culture === selectedCulture); // filtered by culture
 
@@ -62,8 +57,8 @@ function editBurgs() {
       const population = rn(b.population * populationRate.value * urbanization.value);
       totalPopulation += population;
       const type = b.capital && b.port ? "a-capital-port" : b.capital ? "c-capital" : b.port ? "p-port" : "z-burg";
-      const state = states[b.state].name;
-      const culture = cultures[b.culture].name;
+      const state = pack.states[b.state].name;
+      const culture = pack.cultures[b.culture].name;
 
       lines += `<div class="states" data-id=${b.i} data-name=${b.name} data-state=${state} data-culture=${culture} data-population=${population} data-type=${type}>
         <span data-tip="Click to zoom into view" class="icon-dot-circled pointer"></span>
@@ -102,7 +97,7 @@ function editBurgs() {
 
   function getCultureOptions(culture) {
     let options = "";
-    cultures.slice(1).forEach(c => options += `<option ${c.i === culture ? "selected" : ""} value="${c.i}">${c.name}</option>`);
+    pack.cultures.slice(1).forEach(c => options += `<option ${c.i === culture ? "selected" : ""} value="${c.i}">${c.name}</option>`);
     return options;
   }
 
@@ -119,7 +114,7 @@ function editBurgs() {
   function changeBurgName() {
     if (this.value == "")tip("Please provide a name", false, "error");
     const burg = +this.parentNode.dataset.id;
-    burgs[burg].name = this.value;
+    pack.burgs[burg].name = this.value;
     this.parentNode.dataset.name = this.value;
     const label = document.querySelector("#burgLabels [data-id='" + burg + "']");
     if (label) label.innerHTML = this.value;
@@ -135,37 +130,37 @@ function editBurgs() {
   function updateCulturesList() {
     const burg = +this.parentNode.dataset.id;
     const v = +this.value;
-    burgs[burg].culture = v;
-    this.parentNode.dataset.culture = cultures[v].name;
+    pack.burgs[burg].culture = v;
+    this.parentNode.dataset.culture = pack.cultures[v].name;
     this.options.length = 0;
-    cultures.slice(1).forEach(c => this.options.add(new Option(c.name, c.i, false, c.i === v)));
+    pack.cultures.slice(1).forEach(c => this.options.add(new Option(c.name, c.i, false, c.i === v)));
   }
 
   function changeBurgPopulation() {
     const burg = +this.parentNode.dataset.id;
     if (this.value == "" || isNaN(+this.value)) {
       tip("Please provide a valid number", false, "error");
-      this.value = burgs[burg].population * populationRate.value * urbanization.value;
+      this.value = pack.burgs[burg].population * populationRate.value * urbanization.value;
       return;
     }
-    burgs[burg].population = this.value / populationRate.value / urbanization.value;
+    pack.burgs[burg].population = this.value / populationRate.value / urbanization.value;
     this.parentNode.dataset.population = this.value;
 
     const population = [];
     body.querySelectorAll(":scope > div").forEach(el => population.push(+el.dataset.population));
-    burgsFooterPopulation.innerHTML = rn(d3.mean(population));
+    pack.burgsFooterPopulation.innerHTML = rn(d3.mean(population));
   }
 
   function toggleCapitalStatus() {
-    const burg = +this.parentNode.parentNode.dataset.id, state = burgs[burg].state;
-    if (burgs[burg].capital) {tip("To change capital please assign capital status to another burg", false, "error"); return;}
+    const burg = +this.parentNode.parentNode.dataset.id, state = pack.burgs[burg].state;
+    if (pack.burgs[burg].capital) {tip("To change capital please assign capital status to another burg", false, "error"); return;}
     if (!state) {tip("Neutral lands cannot have a capital", false, "error"); return;}
-    const old = states[state].capital;
+    const old = pack.states[state].capital;
 
     // change statuses
-    states[state].capital = burg;
-    burgs[burg].capital = true;
-    burgs[old].capital = false;
+    pack.states[state].capital = burg;
+    pack.burgs[burg].capital = true;
+    pack.burgs[old].capital = false;
     moveBurgToGroup(burg, "cities");
     moveBurgToGroup(old, "towns");
 
@@ -177,20 +172,20 @@ function editBurgs() {
     const anchor = document.querySelector("#anchors [data-id='" + burg + "']");
     if (anchor) anchor.remove();
 
-    if (!burgs[burg].port) {
-      const haven = cells.haven[burgs[burg].cell];
-      const port = haven ? cells.f[haven] : -1;
+    if (!pack.burgs[burg].port) {
+      const haven = pack.cells.haven[pack.burgs[burg].cell];
+      const port = haven ? pack.cells.f[haven] : -1;
       if (!haven) tip("Port haven is not found, system won't be able to make a searoute", false, "warning");
-      burgs[burg].port = port;
+      pack.burgs[burg].port = port;
 
-      const g = burgs[burg].capital ? "cities" : "towns";
+      const g = pack.burgs[burg].capital ? "cities" : "towns";
       const group = anchors.select("g#"+g);
       const size = +group.attr("size");
       group.append("use").attr("xlink:href", "#icon-anchor").attr("data-id", burg)
-        .attr("x", rn(burgs[burg].x - size * .47, 2)).attr("y", rn(burgs[burg].y - size * .47, 2))
+        .attr("x", rn(pack.burgs[burg].x - size * .47, 2)).attr("y", rn(pack.burgs[burg].y - size * .47, 2))
         .attr("width", size).attr("height", size);
     } else {
-      burgs[burg].port = 0;
+      pack.burgs[burg].port = 0;
     }
 
     burgsEditorAddLines();
@@ -198,7 +193,7 @@ function editBurgs() {
 
   function triggerBurgRemove() {
     const burg = +this.parentNode.dataset.id;
-    if (burgs[burg].capital) {tip("You cannot remove the capital. Please change the capital first", false, "error"); return;}
+    if (pack.burgs[burg].capital) {tip("You cannot remove the capital. Please change the capital first", false, "error"); return;}
     removeBurg(burg);
     burgsEditorAddLines();
   }
@@ -206,10 +201,10 @@ function editBurgs() {
   function regenerateNames() {
     body.querySelectorAll(":scope > div").forEach(function(el) {
       const burg = +el.dataset.id;
-      const culture = burgs[burg].culture;
+      const culture = pack.burgs[burg].culture;
       const name = Names.getCulture(culture);
       el.querySelector(".burgName").value = name;
-      burgs[burg].name = el.dataset.name = name;
+      pack.burgs[burg].name = el.dataset.name = name;
       burgLabels.select("[data-id='" + burg + "']").text(name);
     });
   }
@@ -226,8 +221,8 @@ function editBurgs() {
   function addBurgOnClick() {
     const point = d3.mouse(this);
     const cell = findCell(point[0], point[1]);
-    if (cells.h[cell] < 20) {tip("You cannot place state into the water. Please click on a land cell", false, "error"); return;}
-    if (cells.burg[cell]) {tip("There is already a burg in this cell. Please select a free cell", false, "error"); return;}
+    if (pack.cells.h[cell] < 20) {tip("You cannot place state into the water. Please click on a land cell", false, "error"); return;}
+    if (pack.cells.burg[cell]) {tip("There is already a burg in this cell. Please select a free cell", false, "error"); return;}
     addBurg(point); // add new burg
 
     if (d3.event.shiftKey === false) {
@@ -247,13 +242,13 @@ function editBurgs() {
 
   function downloadBurgsData() {
     let data = "Id,Burg,State,Culture,Population,Capital,Port\n"; // headers
-    const valid = burgs.filter(b => b.i && !b.removed); // all valid burgs
+    const valid = pack.burgs.filter(b => b.i && !b.removed); // all valid burgs
 
     valid.forEach(b => {
       data += b.i + ",";
       data += b.name + ",";
-      data += states[b.state].name + ",";
-      data += cultures[b.culture].name + ",";
+      data += pack.states[b.state].name + ",";
+      data += pack.cultures[b.culture].name + ",";
       data += rn(b.population * populationRate.value * urbanization.value) + ",";
       data += b.capital ? "capital," : ",";
       data += b.port ? "port\n" : "\n";
@@ -285,11 +280,11 @@ function editBurgs() {
       let message = `Burgs will be renamed as below. Please confirm`;
       message += `<div class="overflow-div"><table class="overflow-table"><tr><th>Id</th><th>Current name</th><th>New Name</th></tr>`;
 
-      for (let i=1; i < data.length && i < burgs.length; i++) {
+      for (let i=1; i < data.length && i < pack.burgs.length; i++) {
         const v = data[i];
-        if (!v || v == burgs[i].name) continue;
+        if (!v || v == pack.burgs[i].name) continue;
         change.push({i, name: v});
-        message += `<tr><td style="width:20%">${i}</td><td style="width:40%">${burgs[i].name}</td><td style="width:40%">${v}</td></tr>`;
+        message += `<tr><td style="width:20%">${i}</td><td style="width:40%">${pack.burgs[i].name}</td><td style="width:40%">${v}</td></tr>`;
       }
       message += `</tr></table></div>`;
       alertMessage.innerHTML = message;
@@ -300,7 +295,7 @@ function editBurgs() {
           Confirm: function() {
             for (let i=0; i < change.length; i++) {
               const id = change[i].i;
-              burgs[id].name = change[i].name;
+              pack.burgs[id].name = change[i].name;
               burgLabels.select("[data-id='" + id + "']").text(change[i].name);
             }
             $(this).dialog("close");

@@ -225,7 +225,7 @@ function applyDefaultNamesData() {
 
 // apply default biomes data
 function applyDefaultBiomesSystem() {
-  const name = ["Marine","Hot desert","Cold desert","Savanna","Grassland","Tropical seasonal forest","Temparate deciduos forest","Tropical rain forest","Temperate rain forest","Taiga","Tundra","Glacier"];
+  const name = ["Marine","Hot desert","Cold desert","Savanna","Grassland","Tropical seasonal forest","Temparate deciduous forest","Tropical rain forest","Temperate rain forest","Taiga","Tundra","Glacier"];
   //const color = ["#53679f","#fbfaae","#e1df9b","#eef586","#bdde82","#b6d95d","#29bc56","#7dcb35","#45b348","#567c2c","#d5d59d","#e6f5fa"];
   const color = ["#53679f","#fbe79f","#b5b887","#d2d082","#c8d68f","#b6d95d","#29bc56","#7dcb35","#45b348","#4b6b32","#96784b","#d5e7eb"];
   
@@ -233,7 +233,7 @@ function applyDefaultBiomesSystem() {
   const habitability = new Uint8Array([0,2,5,15,25,50,100,80,90,10,2,0]);
   const iconsDensity = new Uint8Array([0,3,2,120,120,120,120,150,150,100,5,0]);
   const icons = [{},{dune:1},{dune:1},{acacia:1, grass:9},{grass:1},{acacia:1, palm:1},{deciduous:1},{acacia:7, palm:2, deciduous:1},{deciduous:7, swamp:3},{conifer:1},{grass:1},{}];
-  const cost = new Uint8Array([10,120,100,60,50,70,70,80,90,80,100,1000]); // biome movement cost
+  const cost = new Uint8Array([10,200,150,60,50,70,70,80,90,80,100,255]); // biome movement cost
   const biomesMartix = [
     new Uint8Array([1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2]),
     new Uint8Array([3,3,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,9,9,9,9,9,10,10]),
@@ -562,7 +562,7 @@ function generate() {
 
   rankCells();
   Cultures.generate();
-  Cultures.expand();  
+  Cultures.expand();
   BurgsAndStates.generate();
   BurgsAndStates.drawStateLabels();
   console.timeEnd("TOTAL");
@@ -1103,21 +1103,29 @@ function rankCells() {
   const areaMean = d3.mean(cells.area); // to adjust population by cell area
 
   for (const i of cells.i) {
-    const b = cells.biome[i];
-    if (b === 0 || b === 11) continue; // "Marine" and "Glacier" biomes has 0 suitability
-    let suitability = biomesData.habitability[b]; // base suitability derived from biome habitability
-    suitability += normalize(cells.fl[i] + cells.fl[i], flMean, flMax) * 250; // big rivers and confluences are valued
-    suitability -= (cells.h[i] - 50) / 10; // low elevation is valued, high is not;
-    if (cells.t[i] === 1 && cells.r[i]) suitability += 15; // estuary is valued
-    if (cells.harbor[i] === 1 && f[cells.f[cells.haven[i]]].type === "ocean") suitability += 20; // safe sea harbor is valued
-    if (cells.t[i] === 1 && f[cells.f[cells.haven[i]]].type === "lake") suitability += 20; // lake coast is valued
+    let s = biomesData.habitability[cells.biome[i]]; // base suitability derived from biome habitability
+    if (!s) continue; // uninhabitable biomes has 0 suitability
+    s += normalize(cells.fl[i] + cells.conf[i], flMean, flMax) * 250; // big rivers and confluences are valued
+    s -= (cells.h[i] - 50) / 5; // low elevation is valued, high is not;
 
-    cells.s[i] = suitability / 5; // general population rate
+    if (cells.t[i] === 1) {
+      if (cells.r[i]) s += 15; // estuary is valued
+      const type = f[cells.f[cells.haven[i]]].type;
+      const group = f[cells.f[cells.haven[i]]].group;
+      if (type === "lake") {
+        if (group === "salt") s += 10; else s += 30; // lake coast is valued
+      } else {
+        s += 5; // ocean coast is valued
+        if (cells.harbor[i] === 1) s += 20; // safe sea harbor is valued
+      }
+    }
+
+    cells.s[i] = s / 5; // general population rate
     // cell rural population is suitability adjusted by cell area
     cells.pop[i] = cells.s[i] > 0 ? cells.s[i] * cells.area[i] / areaMean : 0;
   }
 
-  console.timeEnd('rankCells'); 
+  console.timeEnd('rankCells');
 }
 
 // show map stats on generation complete

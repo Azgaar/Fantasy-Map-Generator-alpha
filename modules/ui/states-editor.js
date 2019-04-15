@@ -8,11 +8,6 @@ function editStates() {
   if (layerIsOn("toggleBiomes")) toggleBiomes();
 
   const body = document.getElementById("statesBodySection");
-  const cells = pack.cells;
-  const states = pack.states;
-  const burgs = pack.burgs;
-  const cultures = pack.cultures;
-
   refreshStatesEditor();
 
   if (modules.editStates) return;
@@ -46,6 +41,7 @@ function editStates() {
   }
 
   function statesCollectStatistics() {
+    const cells = pack.cells, states = pack.states;
     states.forEach(s => s.cells = s.area = s.burgs = s.rural = s.urban = 0);
 
     for (const i of cells.i) {
@@ -55,7 +51,7 @@ function editStates() {
       states[s].area += cells.area[i];
       states[s].rural += cells.pop[i];
       if (cells.burg[i]) {
-        states[s].urban += burgs[cells.burg[i]].population; 
+        states[s].urban += pack.burgs[cells.burg[i]].population; 
         states[s].burgs++;
       }
     }
@@ -67,7 +63,7 @@ function editStates() {
     const hidden = statesRegenerateButtons.style.display === "block" ? "visible" : "hidden"; // show/hide regenerate columns
     let lines = "", totalArea = 0, totalPopulation = 0, totalBurgs = 0;
 
-    for (const s of states) {
+    for (const s of pack.states) {
       if (s.removed) continue;
       const area = s.area * (distanceScale.value ** 2);
       const rural = s.rural * populationRate.value;
@@ -101,9 +97,9 @@ function editStates() {
         </div>`;
         continue;
       }
-      const capital = burgs[s.capital].name;
+      const capital = pack.burgs[s.capital].name;
       lines += `<div class="states" data-id=${s.i} data-name="${s.name}" data-capital="${capital}" data-color="${s.color}" data-cells=${s.cells}
-        data-area=${area} data-population=${population} data-burgs=${s.burgs} data-culture=${cultures[s.culture].name} data-type=${s.type} data-expansionism=${s.expansionism}>
+        data-area=${area} data-population=${population} data-burgs=${s.burgs} data-culture=${pack.cultures[s.culture].name} data-type=${s.type} data-expansionism=${s.expansionism}>
         <input data-tip="State color. Click to change" class="stateColor" type="color" value="${s.color}">
         <input data-tip="State name. Click and type to change" class="stateName" value="${s.name}" autocorrect="off" spellcheck="false">
         <span data-tip="State capital. Click to zoom into view" class="icon-star-empty pointer"></span>
@@ -126,8 +122,8 @@ function editStates() {
     body.innerHTML = lines;
 
     // update footer
-    statesFooterStates.innerHTML = states.filter(s => s.i && !s.removed).length;
-    statesFooterCells.innerHTML = cells.h.filter(h => h >= 20).length;
+    statesFooterStates.innerHTML = pack.states.filter(s => s.i && !s.removed).length;
+    statesFooterCells.innerHTML = pack.cells.h.filter(h => h >= 20).length;
     statesFooterBurgs.innerHTML = totalBurgs;
     statesFooterArea.innerHTML = si(totalArea) + unit;
     statesFooterPopulation.innerHTML = si(totalPopulation);
@@ -154,7 +150,7 @@ function editStates() {
   
   function getCultureOptions(culture) {
     let options = "";
-    cultures.slice(1).forEach(c => options += `<option ${c.i === culture ? "selected" : ""} value="${c.i}">${c.name}</option>`);
+    pack.cultures.slice(1).forEach(c => options += `<option ${c.i === culture ? "selected" : ""} value="${c.i}">${c.name}</option>`);
     return options;
   }
 
@@ -198,7 +194,7 @@ function editStates() {
 
   function stateChangeColor() {
     const state = +this.parentNode.dataset.id;
-    states[state].color = this.value;
+    pack.states[state].color = this.value;
     regions.select("#state"+state).attr("fill", this.value);
     regions.select("#state-gap"+state).attr("stroke", this.value);
     regions.select("#state-border"+state).attr("stroke", d3.color(this.value).darker().hex());
@@ -207,22 +203,22 @@ function editStates() {
   function stateChangeName() {
     const state = +this.parentNode.dataset.id;
     this.parentNode.dataset.name = this.value;
-    states[state].name = this.value;
+    pack.states[state].name = this.value;
     document.querySelector("#stateLabel"+state+" > textPath").textContent = this.value;
   }
 
   function stateChangeCapitalName() {
     const state = +this.parentNode.dataset.id;
     this.parentNode.dataset.capital = this.value;
-    const capital = states[state].capital;
+    const capital = pack.states[state].capital;
     if (!capital) return;
-    burgs[capital].name = this.value; 
+    pack.burgs[capital].name = this.value; 
     document.querySelector("#burgLabel"+capital).textContent = this.value;
   }
 
   function stateCapitalZoomIn() {
     const state = +this.parentNode.dataset.id;
-    const capital = states[state].capital;
+    const capital = pack.states[state].capital;
     const l = burgLabels.select("[data-id='" + capital + "']");
     const x = +l.attr("x"), y = +l.attr("y");
     zoomTo(x, y, 8, 2000);
@@ -231,22 +227,22 @@ function editStates() {
   function stateUpdateCulturesList() {
     const state = +this.parentNode.dataset.id;
     const v = +this.value;
-    this.parentNode.dataset.base = states[state].culture = v;
+    this.parentNode.dataset.base = pack.states[state].culture = v;
     this.options.length = 0;
-    cultures.slice(1).forEach(c => this.options.add(new Option(c.name, c.i, false, c.i === v)));
+    pack.cultures.slice(1).forEach(c => this.options.add(new Option(c.name, c.i, false, c.i === v)));
   }
 
   function stateChangeType() {
     const state = +this.parentNode.dataset.id;
     this.parentNode.dataset.type = this.value;
-    states[state].type = this.value;
+    pack.states[state].type = this.value;
     recalculateStates();
   }
 
   function stateChangeExpansionism() {
     const state = +this.parentNode.dataset.id;
     this.parentNode.dataset.expansionism = this.value;
-    states[state].expansionism = +this.value;
+    pack.states[state].expansionism = +this.value;
     recalculateStates();
   }
 
@@ -257,13 +253,13 @@ function editStates() {
     regions.select("#state-gap"+state).remove();
     regions.select("#state-border"+state).remove();
     document.querySelector("#stateLabel"+state+" > textPath").remove();
-    burgs.forEach(b => {if(b.state === state) b.state = 0;});
-    cells.state.forEach((s, i) => {if(s === state) cells.state[i] = 0;});
-    states[state].removed = true;
+    pack.burgs.forEach(b => {if(b.state === state) b.state = 0;});
+    pack.cells.state.forEach((s, i) => {if(s === state) pack.cells.state[i] = 0;});
+    pack.states[state].removed = true;
     
-    const capital = states[state].capital;
-    burgs[capital].capital = false;
-    burgs[capital].state = 0;
+    const capital = pack.states[state].capital;
+    pack.burgs[capital].capital = false;
+    pack.burgs[capital].state = 0;
     moveBurgToGroup(capital, "towns");
     
     if (!layerIsOn("toggleStates")) toggleStates(); else drawStatesWithBorders();
@@ -297,7 +293,7 @@ function editStates() {
       const culture = states[state].culture;
       const name = Names.getState(Names.getCulture(culture, 4, 7, ""), culture);
       el.querySelector(".stateName").value = name;
-      states[state].name = el.dataset.name = name;
+      pack.states[state].name = el.dataset.name = name;
       labels.select("#stateLabel"+state+" > textPath").text(name);
     });
     if (adjustLabels.checked) BurgsAndStates.drawStateLabels();
@@ -325,7 +321,7 @@ function editStates() {
   }
 
   function randomizeStatesExpansion() {
-    states.slice(1).forEach(s => {
+    pack.states.slice(1).forEach(s => {
       const expansionism = rn(Math.random() * powerInput.value / 2 + 1, 1);
       s.expansionism = expansionism;
       body.querySelector("div.states[data-id='"+s.i+"'] > input.statePower").value = expansionism;
@@ -366,10 +362,10 @@ function editStates() {
   function selectStateOnMapClick() {
     const point = d3.mouse(this);
     const i = findCell(point[0], point[1]);
-    if (cells.h[i] < 20) return;
+    if (pack.cells.h[i] < 20) return;
 
     const assigned = regions.select("#temp").select("polygon[data-cell='"+i+"']");
-    const state = assigned.size() ? +assigned.attr("data-state") : cells.state[i];
+    const state = assigned.size() ? +assigned.attr("data-state") : pack.cells.state[i];
 
     body.querySelector("div.selected").classList.remove("selected");
     body.querySelector("div[data-id='"+state+"']").classList.add("selected");
@@ -391,13 +387,13 @@ function editStates() {
     const selected = body.querySelector("div.selected");
 
     const stateNew = +selected.dataset.id;
-    const color = states[stateNew].color || "#ffffff";
+    const color = pack.states[stateNew].color || "#ffffff";
 
     selection.forEach(function(i) {
       const exists = temp.select("polygon[data-cell='"+i+"']");
-      const stateOld = exists.size() ? +exists.attr("data-state") : cells.state[i];
+      const stateOld = exists.size() ? +exists.attr("data-state") : pack.cells.state[i];
       if (stateNew === stateOld) return;
-      if (i === states[stateOld].center) return;
+      if (i === pack.states[stateOld].center) return;
 
       // change of append new element
       if (exists.size()) exists.attr("data-state", stateNew).attr("fill", color).attr("stroke", color);
@@ -413,12 +409,13 @@ function editStates() {
   }
 
   function applyStatesManualAssignent() {
+    const cells = pack.cells;
     const changed = regions.select("#temp").selectAll("polygon");
     changed.each(function() {
       const i = +this.dataset.cell;
       const c = +this.dataset.state;
       cells.state[i] = c;
-      if (cells.burg[i]) burgs[cells.burg[i]].state = c;
+      if (cells.burg[i]) pack.burgs[cells.burg[i]].state = c;
     });
 
     if (changed.size()) {
@@ -455,22 +452,22 @@ function editStates() {
   function addState() {
     const point = d3.mouse(this);
     const center = findCell(point[0], point[1]);
-    if (cells.h[center] < 20) {tip("You cannot place state into the water. Please click on a land cell", false, "error"); return;}
-    let burg = cells.burg[center];
-    if (burg && burgs[burg].capital) {tip("Existing capital cannot be selected as a new state capital! Select other cell", false, "error"); return;}
+    if (pack.cells.h[center] < 20) {tip("You cannot place state into the water. Please click on a land cell", false, "error"); return;}
+    let burg = pack.cells.burg[center];
+    if (burg && pack.burgs[burg].capital) {tip("Existing capital cannot be selected as a new state capital! Select other cell", false, "error"); return;}
     if (!burg) burg = addBurg(point); // add new burg
 
     // turn burg into a capital
-    burgs[burg].capital = true;
-    burgs[burg].state = states.length;
+    pack.burgs[burg].capital = true;
+    pack.burgs[burg].state = pack.states.length;
     moveBurgToGroup(burg, "cities");
 
     exitAddStateMode();
-    const culture = cells.culture[center];
-    const basename = center%5 === 0 ? burgs[burg].name : Names.getCulture(culture);
+    const culture = pack.cells.culture[center];
+    const basename = center%5 === 0 ? pack.burgs[burg].name : Names.getCulture(culture);
     const name = Names.getState(basename, culture);
     const color = d3.color(d3.scaleSequential(d3.interpolateRainbow)(Math.random())).hex();
-    states.push({i:states.length, name, color, expansionism:.5, capital:burg, type:"Generic", center, culture});
+    pack.states.push({i:pack.states.length, name, color, expansionism:.5, capital:burg, type:"Generic", center, culture});
     recalculateStates();
   }
 

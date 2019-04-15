@@ -163,13 +163,12 @@
 
       for (const c of cells.c[n]) {
         if (cells.h[c] < 20) continue; // ignore water cells
-
-        const distCost = end ? Math.abs(cells.p[c][0] - cells.p[end][0]) + Math.abs(cells.p[c][1] - cells.p[end][1]) : 0;
-        const typeCost = cells.t[c] === 1 ? 10 : cells.t[c] === 2 ? 50 : 100;
-        const biomeCost = biomesData.cost[cells.biome[c]];
+        const typeCost = cells.t[c] === 1 ? 10 : cells.t[c] === 2 ? 50 : 40;
+        //const biomeCost = biomesData.cost[cells.biome[c]];
         const heightCost = cells.h[c] + (cells.h[c] >= 70 ? 200 : cells.h[c] >= 50 ? 80 : 0);
-        const cellCoast = distCost + distCost + biomeCost + heightCost;
+        const cellCoast = typeCost + heightCost;
         const totalCost = p + (cells.road[c] || cells.burg[c] ? cellCoast / 2.5 : cellCoast);
+        //console.log({distCost}, {biomeCost}, {heightCost}, {cellCoast});
 
         if (from[c] || totalCost >= cost[c]) continue;
         from[c] = n;
@@ -177,7 +176,7 @@
         cost[c] = totalCost;
         queue.queue({e: c, p: totalCost});
       }
-      
+
     }
     return from;
   }

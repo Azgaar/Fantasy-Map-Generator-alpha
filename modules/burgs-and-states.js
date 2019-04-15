@@ -26,7 +26,7 @@
 
     Routes.draw(capitalRoutes, townRoutes, oceanRoutes);
     drawBurgsWithLabels();
-    
+
     function placeCapitals() {
       console.time('placeCapitals');
       let count = +regionsInput.value;

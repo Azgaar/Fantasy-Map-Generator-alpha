@@ -117,7 +117,7 @@ function editHeightmap() {
     if (document.getElementById("preview")) document.getElementById("preview").remove();
 
     const mode = heightmapEditMode.innerHTML;
-    if (mode === "erase") regenerateErasedData(); 
+    if (mode === "erase") regenerateErasedData();
     else if (mode === "keep") restoreKeptData();
     else if (mode === "risk") restoreRiskedData();
 
@@ -125,7 +125,6 @@ function editHeightmap() {
     turnButtonOff("toggleHeight");
     changePreset("landmass");
     editHeightmap.layers.forEach(l => document.getElementById(l).click());
-    restoreLayers();
     layersPreset.disabled = false;
   }
 
@@ -164,7 +163,7 @@ function editHeightmap() {
     console.timeEnd("regenerateErasedData");
     console.groupEnd("Edit Heightmap");
   }
-  
+
   function restoreKeptData() {
     viewbox.selectAll("#landmass, #lakes").attr("display", null);
     for (const i of pack.cells.i) {

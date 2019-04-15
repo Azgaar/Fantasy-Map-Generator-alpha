@@ -7,9 +7,7 @@ function editBiomes() {
   if (layerIsOn("toggleCultures")) toggleCultures();
 
   const body = document.getElementById("biomesBody");
-  const cells = pack.cells;
   const animate = d3.transition().duration(2000).ease(d3.easeSinIn);
-
   refreshBiomesEditor();
 
   if (modules.editBiomes) return;
@@ -36,6 +34,7 @@ function editBiomes() {
   }
 
   function biomesCollectStatistics() {
+    const cells = pack.cells;
     biomesData.cells = new Uint32Array(biomesData.i.length);
     biomesData.area = new Uint32Array(biomesData.i.length);
     biomesData.rural = new Uint32Array(biomesData.i.length);
@@ -84,7 +83,7 @@ function editBiomes() {
 
     // update footer
     biomesFooterBiomes.innerHTML = b.i.length - 1;
-    biomesFooterCells.innerHTML = cells.h.filter(h => h >= 20).length;
+    biomesFooterCells.innerHTML = pack.cells.h.filter(h => h >= 20).length;
     biomesFooterArea.innerHTML = si(totalArea) + unit;
     biomesFooterPopulation.innerHTML = si(totalPopulation);
     biomesFooterArea.dataset.area = totalArea;
@@ -216,10 +215,10 @@ function editBiomes() {
   function selectBiomeOnMapClick() {
     const point = d3.mouse(this);
     const i = findCell(point[0], point[1]);
-    if (cells.h[i] < 20) {tip("You cannot reassign water via biomes. Please edit the Heightmap to change water", false, "error"); return;}
+    if (pack.cells.h[i] < 20) {tip("You cannot reassign water via biomes. Please edit the Heightmap to change water", false, "error"); return;}
 
     const assigned = biomes.select("#temp").select("polygon[data-cell='"+i+"']");
-    const biome = assigned.size() ? +assigned.attr("data-biome") : cells.biome[i];
+    const biome = assigned.size() ? +assigned.attr("data-biome") : pack.cells.biome[i];
 
     body.querySelector("div.selected").classList.remove("selected");
     body.querySelector("div[data-id='"+biome+"']").classList.add("selected");    
@@ -245,7 +244,7 @@ function editBiomes() {
 
     selection.forEach(function(i) {
       const exists = temp.select("polygon[data-cell='"+i+"']");
-      const biomeOld = exists.size() ? +exists.attr("data-biome") : cells.biome[i];
+      const biomeOld = exists.size() ? +exists.attr("data-biome") : pack.cells.biome[i];
       if (biomeNew === biomeOld) return;
 
       // change of append new element
@@ -266,7 +265,7 @@ function editBiomes() {
     changed.each(function() {
       const i = +this.dataset.cell;
       const b = +this.dataset.biome;
-      cells.biome[i] = b;
+      pack.cells.biome[i] = b;
     });
     
     if (changed.size()) {
