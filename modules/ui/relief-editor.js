@@ -123,7 +123,6 @@ function editReliefIcon() {
     });
 
     d3.event.on("drag", function() {
-      step++;
       const p = d3.mouse(this);
       moveCircle(p[0], p[1], r);
 
