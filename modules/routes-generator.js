@@ -13,12 +13,11 @@
 
     for (const b of capitals) {
       const connect = capitals.filter(c => c.i > b.i && c.feature === b.feature);
-
-      for (const c of connect) {
-        const from = findLandPath(b.cell, c.cell);
-        const segments = restorePath(b.cell, c.cell, "main", from);
-        segments.forEach(s => paths.push(s));
-      }
+      if (!connect.length) continue;
+      const farthest = d3.scan(connect, (a, c) => ((c.y - b.y) ** 2 + (c.x - b.x) ** 2) - ((a.y - b.y) ** 2 + (a.x - b.x) ** 2));
+      const [from, exit] = findLandPath(b.cell, connect[farthest].cell, null);
+      const segments = restorePath(b.cell, exit, "main", from);
+      segments.forEach(s => paths.push(s));
     }
 
     cells.i.forEach(i => cells.s[i] += cells.road[i] / 2); // add roads to suitability score
@@ -40,11 +39,13 @@
         let path = [];
         if (!i) {
           const farthest = d3.scan(isle, (a, c) => ((c.y - b.y) ** 2 + (c.x - b.x) ** 2) - ((a.y - b.y) ** 2 + (a.x - b.x) ** 2));
-          const from = findLandPath(b.cell, isle[farthest].cell);
-          path = restorePath(b.cell, isle[i+1].cell, "small", from);
+          const to = isle[farthest].cell;
+          if (cells.road[to]) return;
+          const [from, exit] = findLandPath(b.cell, to, null);
+          path = restorePath(b.cell, exit, "small", from);
         } else {
           if (cells.road[b.cell]) return;
-          const [from, exit] = findILandPathToRoad(b.cell);
+          const [from, exit] = findLandPath(b.cell, null, true);
           if (exit === null) return;
           path = restorePath(b.cell, exit, "small", from);
         }
@@ -152,10 +153,11 @@
   return {getRoads, getTrails, getSearoutes, draw, regenerate};
 
   // Dijkstra's algorithm to find a land path
-  function findLandPath(start, end = null) {
+  function findLandPath(start, exit = null, toRoad = null) {
     const cells = pack.cells;
     const queue = new PriorityQueue({comparator: (a, b) => a.p - b.p});
     const cost = [], from = [];
+    const basicCost = 10;
     queue.queue({e: start, p: 0});
 
     while (queue.length) {
@@ -163,22 +165,22 @@
 
       for (const c of cells.c[n]) {
         if (cells.h[c] < 20) continue; // ignore water cells
-        const typeCost = cells.t[c] === 1 ? 10 : cells.t[c] === 2 ? 50 : 40;
-        //const biomeCost = biomesData.cost[cells.biome[c]];
-        const heightCost = cells.h[c] + (cells.h[c] >= 70 ? 200 : cells.h[c] >= 50 ? 80 : 0);
-        const cellCoast = typeCost + heightCost;
-        const totalCost = p + (cells.road[c] || cells.burg[c] ? cellCoast / 2.5 : cellCoast);
-        //console.log({distCost}, {biomeCost}, {heightCost}, {cellCoast});
+        if (toRoad && cells.road[n]) return [from, n];
+
+        const habitedCost = 100 - biomesData.habitability[cells.biome[c]];
+        const heightCost = Math.abs(cells.h[c] - cells.h[n]) * 10;
+        const cellCoast = basicCost + habitedCost + heightCost;
+        const totalCost = p + (cells.road[c] || cells.burg[c] ? cellCoast / 3 : cellCoast);
 
         if (from[c] || totalCost >= cost[c]) continue;
         from[c] = n;
-        if (c === end) return from;
+        if (c === exit) return [from, exit];
         cost[c] = totalCost;
         queue.queue({e: c, p: totalCost});
       }
 
     }
-    return from;
+    return [from, exit];
   }
 
   function restorePath(start, end, type, from) {
@@ -215,36 +217,6 @@
 
     if (segment.length > 1) path.push(segment);
     return path;
-  }
-
-  // Find a land path from cell to a closest road
-  function findILandPathToRoad(start, exit = null) {
-    const cells = pack.cells;
-    const queue = new PriorityQueue({comparator: (a, b) => a.p - b.p});
-    const cost = [], from = [];
-    queue.queue({e: start, p: 0});
-
-    while (queue.length) {
-      const next = queue.dequeue(), n = next.e, p = next.p;
-      if (cells.road[n]) {exit = n; break;}
-
-      for (const c of cells.c[n]) {
-        if (cells.h[c] < 20) continue; // ignore water cells
-
-        const typeCost = cells.t[c] === 1 ? 10 : cells.t[c] === 2 ? 50 : 100;
-        const biomeCost = biomesData.cost[cells.biome[c]];
-        const heightCost = cells.h[c] + (cells.h[c] >= 70 ? 100 : cells.h[c] >= 50 ? 30 : 0);
-        const cellCost = typeCost + biomeCost + heightCost;
-        const totalCost = p + (cells.road[c] || cells.burg[c] ? -50 : cellCost);
-
-        if (from[c] || totalCost >= cost[c]) continue;
-        cost[c] = totalCost;
-        from[c] = n;
-        queue.queue({e: c, p: totalCost});
-      }
-      
-    }
-    return [from, exit];
   }
 
   // Dijkstra's algorithm to find a land path from one cell to another cell

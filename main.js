@@ -155,7 +155,7 @@ function showWelcomeMessage() {
 }
 
 function applyDefaultNamesData() {
-  // name, min length, max length, letters to allow dublication, multi-word name rate
+  // name, min length, max length, letters to allow duplication, multi-word name rate
   nameBases = [
     {name: "German", min: 5, max: 12, d: "lt", m: 0},
     {name: "English", min: 6, max: 11, d: "", m: 0.1},
