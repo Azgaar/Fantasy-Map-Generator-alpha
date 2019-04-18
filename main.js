@@ -936,7 +936,7 @@ function drawCoastline() {
     } else {
       landMask.append("path").attr("d", path).attr("fill", "white");
       waterMask.append("path").attr("d", path).attr("fill", "black");
-      coastline.append("path").attr("d", path); // draw the coastline
+      coastline.append("path").attr("d", path).attr("id", "landmass"+features[f].i).attr("class", features[f].type); // draw the coastline
     }
 
     // draw ruler to cover the biggest land piece
@@ -1016,8 +1016,15 @@ function reMarkFeatures() {
         }
       });
     }
-    const type = land ? "island" : border ? "ocean" : "lake";
+    let type = land ? "island" : border ? "ocean" : "lake";
     const group = type === "lake" ? temp < 25 ? "freshwater" : "salt" : null;
+    if(type === "island"){
+      if (cellNumber > 1000){
+        type = "continent";
+      } else if (cellNumber < 20){
+        type = "isle";
+      }
+    }
     features.push({i, land, border, type, cells: cellNumber, group});
     queue[0] = cells.f.findIndex(f => !f); // find unmarked cell
   }
