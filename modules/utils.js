@@ -215,6 +215,10 @@ function rand(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function gauss(expected = 100, deviation = 30, min = 0, max = 300, round = 0) {
+  return rn(Math.max(Math.min(d3.randomNormal(expected, deviation)(), max), min), round);
+}
+
 // round value to d decimals
 function rn(v, d = 0) {
   const m = Math.pow(10, d);

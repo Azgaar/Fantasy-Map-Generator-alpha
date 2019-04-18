@@ -8,6 +8,9 @@ function editWorld() {
   const projection = d3.geoOrthographic().translate([100, 100]).scale(100);
   const path = d3.geoPath(projection);
 
+  updateGlobeTemperature();
+  updateGlobePosition();
+
   if (modules.editWorld) return;
   modules.editWorld = true;
 
@@ -15,9 +18,6 @@ function editWorld() {
   globe.select("#globeWindArrows").on("click", changeWind);
   globe.select("#restoreWind").on("click", restoreDefaultWinds);
   globe.select("#globeGraticule").attr("d", round(path(d3.geoGraticule()()))); // globe graticule
-
-  updateGlobeTemperature();
-  updateGlobePosition();
   updateWindDirections();
 
   function updateWorld(el) {
@@ -94,7 +94,7 @@ function editWorld() {
   function changeWind() {
     const arrow = d3.event.target.nextElementSibling;
     const tier = +arrow.dataset.tier;
-    winds[tier] = winds[tier] + 45 < 360 ? winds[tier] + 45 : 0;
+    winds[tier] = (winds[tier] + 45) % 360;
     const tr = parseTransform(arrow.getAttribute("transform"));
     arrow.setAttribute("transform", `rotate(${winds[tier]} ${tr[1]} ${tr[2]})`);
     localStorage.setItem("winds", winds);

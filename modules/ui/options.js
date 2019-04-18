@@ -758,7 +758,7 @@ function applyStoredOptions() {
 
   if (!localStorage.getItem("mapWidth") || !localStorage.getItem("mapHeight")) {
     mapWidthInput.value = window.innerWidth;
-    mapHeightInput.value = window.innerHeight;    
+    mapHeightInput.value = window.innerHeight;
   }
 
   if (localStorage.getItem("winds")) winds = localStorage.getItem("winds").split(",").map(w => +w);
@@ -783,7 +783,7 @@ function randomizeOptions() {
   if (!locked("power")) powerInput.value = powerOutput.value = rand(0, 4);
   if (!locked("neutral")) neutralInput.value = neutralOutput.value = rn(0.8 + Math.random(), 1);
   if (!locked("cultures")) culturesInput.value = culturesOutput.value = rand(10, 15);
-  if (!locked("prec")) precInput.value = precOutput.value = rand(30, 100);
+  if (!locked("prec")) precInput.value = precOutput.value = gauss(100, 40, 0, 500);
   const tMax = +temperatureEquatorOutput.max, tMin = +temperatureEquatorOutput.min; // temperature extremes
   if (!locked("temperatureEquator")) temperatureEquatorOutput.value = temperatureEquatorInput.value = rand(tMax-6, tMax);
   if (!locked("temperaturePole")) temperaturePoleOutput.value = temperaturePoleInput.value = rand(tMin, tMin+10);
@@ -799,7 +799,7 @@ function randomizeWorldSize() {
   const eqY = equatorOutput.value = eq.value = rand(+eq.min, +eq.max); // equator Y
   eqDO.min = eqDI.min = Math.max(graphHeight - eqY, eqY);
   eqDO.max = eqDI.max = eqDO.min * 10;
-  eqDO.value = eqDI.value = rand(+eqDO.min * 1.2, +eqDO.min * 4); // distance from equator to poles
+  eqDO.value = eqDI.value = rand(rn(eqDO.min * 1.2), rn(eqDO.min * 4)); // distance from equator to poles
 }
 
 // remove all saved data from LocalStorage and reload the page

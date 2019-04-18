@@ -700,7 +700,7 @@ function openNearSeaLakes() {
 // calculate map position on globe based on equator position and length to poles
 function calculateMapCoordinates() {
   const eqY = +document.getElementById("equatorInput").value;
-  const eqD = +document.getElementById("equidistanceInput").value;  
+  const eqD = +document.getElementById("equidistanceInput").value;
   const latT = graphHeight / 2 / eqD * 180;
   const eqMod = eqY / graphHeight;
   const latN = latT * eqMod;
@@ -767,8 +767,8 @@ function generatePrecipitation() {
     const tier = Math.abs(lat - 89) / 30 | 0; // 30d tiers from 0 to 5 from N to S
     if (winds[tier] > 40 && winds[tier] < 140) westerly.push([c, latMod, tier]);
     else if (winds[tier] > 220 && winds[tier] < 320) easterly.push([c + cellsX -1, latMod, tier]);
-    if (winds[tier] > 100 && winds[tier] < 260) southerly++;
-    else if (winds[tier] > 280 || winds[tier] < 80) northerly++;
+    if (winds[tier] > 100 && winds[tier] < 260) northerly++;
+    else if (winds[tier] > 280 || winds[tier] < 80) southerly++;
   });
   
   // distribute winds by direction
@@ -784,7 +784,7 @@ function generatePrecipitation() {
   if (southerly) {
     const bandS = (Math.abs(mapCoordinates.latS) - 1) / 5 | 0;
     const latModS = mapCoordinates.latT > 60 ? d3.mean(lalitudeModifier) : lalitudeModifier[bandS];
-    const maxPrecS = southerly / vertT * 60 * modifier * latModS;    
+    const maxPrecS = southerly / vertT * 60 * modifier * latModS;
     passWind(d3.range(cells.i.length - cellsX, cells.i.length, 1), maxPrecS, -cellsX, cellsY);
   }
 
@@ -802,8 +802,8 @@ function generatePrecipitation() {
           if (cells.h[current+next] >= 20) {
             cells.prec[current+next] += Math.max(humidity / rand(10, 20), 1); // coastal precipitation
           } else {
-            humidity = Math.min(humidity+5, maxPrec); // wind gets more humidity passing water cell
-            cells.prec[current] += 5; // water cells precipitation (need to correctly pour water through lakes)
+            humidity = Math.min(humidity + 5 * modifier, maxPrec); // wind gets more humidity passing water cell
+            cells.prec[current] += 5 * modifier; // water cells precipitation (need to correctly pour water through lakes)
           }
           continue;
         }
@@ -819,9 +819,9 @@ function generatePrecipitation() {
 
   function getPrecipitation(humidity, i, n) {
     if (cells.h[i+n] > 85) return humidity; // 85 is max passable height
-    const normalLoss = Math.max(humidity / 10, 1); // precipitation in normal conditions
+    const normalLoss = Math.max(humidity / (10 * modifier), 1); // precipitation in normal conditions
     const diff = Math.max(cells.h[i+n] - cells.h[i], 0); // difference in height
-    const mod = (cells.h[i+n] / 70) ** 2; // height modifier, 50 stands for hills, 70 for mountains
+    const mod = (cells.h[i+n] / 70) ** 2; // 50 stands for hills, 70 for mountains
     return Math.min(Math.max(normalLoss + diff * mod, 1), humidity);
   }
 
@@ -834,7 +834,7 @@ function generatePrecipitation() {
         if (west && west.length > 3) {
           const from = west[0][0], to = west[west.length-1][0];
           const y = (grid.points[from][1] + grid.points[to][1]) / 2;
-          wind.append("text").attr("x", 20).attr("y", y).text("\u21C9");          
+          wind.append("text").attr("x", 20).attr("y", y).text("\u21C9");
         }
       }
       if (easterly.length > 1) {
