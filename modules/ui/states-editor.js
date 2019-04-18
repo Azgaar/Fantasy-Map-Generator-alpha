@@ -290,7 +290,7 @@ function editStates() {
     body.querySelectorAll(":scope > div").forEach(function(el) {
       const state = +el.dataset.id;
       if (!state) return;
-      const culture = states[state].culture;
+      const culture = pack.states[state].culture;
       const name = Names.getState(Names.getCulture(culture, 4, 7, ""), culture);
       el.querySelector(".stateName").value = name;
       pack.states[state].name = el.dataset.name = name;
