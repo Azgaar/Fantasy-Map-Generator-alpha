@@ -732,9 +732,9 @@ function changeDialogsTransparency(value) {
   const optionsColor = "rgba(164, 139, 149, " + alpha + ")";
   const dialogsColor = "rgba(255, 255, 255, " + alpha + ")";
   const optionButtonsColor = "rgba(145, 110, 127, " + Math.min(alpha + .3, 1) + ")";
-  const optionLiColor = "rgba(153, 123, 137, " + Math.min(alpha + .3, 1) + ")"; 
+  const optionLiColor = "rgba(153, 123, 137, " + Math.min(alpha + .3, 1) + ")";
   document.getElementById("options").style.backgroundColor = optionsColor;
-  document.getElementById("dialogs").style.backgroundColor = dialogsColor;  
+  document.getElementById("dialogs").style.backgroundColor = dialogsColor;
   document.querySelectorAll(".tabcontent button").forEach(el => el.style.backgroundColor = optionButtonsColor);
   document.querySelectorAll(".tabcontent li").forEach(el => el.style.backgroundColor = optionLiColor);
   document.querySelectorAll("button.options").forEach(el => el.style.backgroundColor = optionLiColor);
@@ -763,7 +763,7 @@ function applyStoredOptions() {
 
   if (localStorage.getItem("winds")) winds = localStorage.getItem("winds").split(",").map(w => +w);
   
-  changeDialogsTransparency(localStorage.getItem("transparency") || 0);
+  changeDialogsTransparency(localStorage.getItem("transparency") || 30);
   if (localStorage.getItem("uiSize")) changeUIsize(localStorage.getItem("uiSize"));
   if (localStorage.getItem("tooltipSize")) changeTooltipSize(localStorage.getItem("tooltipSize"));
   if (localStorage.getItem("regions")) changeStatesNumber(localStorage.getItem("regions"));

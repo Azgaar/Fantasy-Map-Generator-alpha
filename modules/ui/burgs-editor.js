@@ -25,6 +25,7 @@ function editBurgs() {
   document.getElementById("burgsExport").addEventListener("click", downloadBurgsData);
   document.getElementById("burgNamesImport").addEventListener("click", e => burgsListToLoad.click());
   document.getElementById("burgsListToLoad").addEventListener("change", importBurgNames);
+  document.getElementById("burgsRemoveAll").addEventListener("click", triggerAllBurgsRemove);
 
   function updateFilter() {
     const stateFilter = document.getElementById("burgsFilterState");
@@ -306,6 +307,25 @@ function editBurgs() {
     }
     
     fileReader.readAsText(fileToLoad, "UTF-8");
+  }
+
+  function triggerAllBurgsRemove() {
+    alertMessage.innerHTML = `Are you sure you want to remove all burgs except of capitals?
+      <br>To remove a capital you have to remove its state first`;
+    $("#alert").dialog({resizable: false, title: "Remove all burgs",
+      buttons: {
+        Remove: function() {
+          $(this).dialog("close");
+          removeAllBurgs();
+        },
+        Cancel: function() {$(this).dialog("close");}
+      }
+    });
+  }
+
+  function removeAllBurgs() {
+    pack.burgs.filter(b => b.i && !b.capital).forEach(b => removeBurg(b.i));
+    burgsEditorAddLines();
   }
 
 }

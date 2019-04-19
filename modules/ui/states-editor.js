@@ -340,7 +340,7 @@ function editStates() {
     customization = 2;
     regions.append("g").attr("id", "temp");
     document.querySelectorAll("#statesBottom > button").forEach(el => el.style.display = "none");
-    document.getElementById("statesManuallyButtons").style.display = "inline-block";    
+    document.getElementById("statesManuallyButtons").style.display = "inline-block";
     document.getElementById("statesHalo").style.display = "none";
 
     tip("Click on state to select, drag the circle to change state", true);
@@ -356,7 +356,7 @@ function editStates() {
   function selectStateOnLineClick(i) {
     if (customization !== 2) return;
     body.querySelector("div.selected").classList.remove("selected");
-    this.classList.add("selected");    
+    this.classList.add("selected");
   }
 
   function selectStateOnMapClick() {

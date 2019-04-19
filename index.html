@@ -932,10 +932,10 @@
             <td></td>
             <td>Transparency</td>
             <td>
-              <input id="transparencyInput" data-stored="transparency" type="range" min=0 max=100 value=0>
+              <input id="transparencyInput" data-stored="transparency" type="range" min=0 max=100 value=30>
             </td>
             <td>
-              <input id="transparencyOutput" data-stored="transparency" type="number" min=0 max=100 value=0>
+              <input id="transparencyOutput" data-stored="transparency" type="number" min=0 max=100 value=30>
             </td>
           </tr>
 
@@ -1747,6 +1747,7 @@
         <button id="addNewBurg" data-tip="Add a new burg. Hold Shift to add multiple" class="icon-plus"></button>
         <button id="burgsExport" data-tip="Save burgs-related data as a text file (.csv)" class="icon-download"></button>
         <button id="burgNamesImport" data-tip="Import burg names. Source file should be a plain list of names where each name is on a separate line" class="icon-upload"></button>
+        <button id="burgsRemoveAll" data-tip="Remove all burgs except of capitals. To remove a capital remove its state first" class="icon-trash"></button>
       </div>
     </div>
 
