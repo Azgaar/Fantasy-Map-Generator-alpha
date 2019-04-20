@@ -932,11 +932,11 @@ function drawCoastline() {
     if (features[f].type === "lake") {
       landMask.append("path").attr("d", path).attr("fill", "black");
       //waterMask.append("path").attr("d", path).attr("fill", "white"); // uncomment to show over lakes
-      lakes.select("#"+features[f].group).append("path").attr("d", path).attr("id", "lake"+features[f].i); // draw the lake
+      lakes.select("#"+features[f].group).append("path").attr("d", path).attr("id", "lake"+features[f].i).attr("class", features[f].type + " " + features[f].group); // draw the lake
     } else {
       landMask.append("path").attr("d", path).attr("fill", "white");
       waterMask.append("path").attr("d", path).attr("fill", "black");
-      coastline.append("path").attr("d", path).attr("id", "landmass"+features[f].i).attr("class", features[f].type); // draw the coastline
+      coastline.append("path").attr("d", path).attr("id", "landmass"+features[f].i).attr("class", features[f].type + " " + features[f].group); // draw the coastline
     }
 
     // draw ruler to cover the biggest land piece
@@ -1016,13 +1016,15 @@ function reMarkFeatures() {
         }
       });
     }
-    let type = land ? "island" : border ? "ocean" : "lake";
-    const group = type === "lake" ? temp < 25 ? "freshwater" : "salt" : null;
+    const type = land ? "island" : border ? "ocean" : "lake";
+    let group = type === "lake" ? temp < 25 ? "freshwater" : "salt" : null;
     if(type === "island"){
       if (cellNumber > 1000){
-        type = "continent";
+        group = "continent";
       } else if (cellNumber < 20){
-        type = "isle";
+        group = "isle";
+      } else {
+        group = "island";
       }
     }
     features.push({i, land, border, type, cells: cellNumber, group});
