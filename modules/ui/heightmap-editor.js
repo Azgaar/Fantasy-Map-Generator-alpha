@@ -592,30 +592,30 @@ function editHeightmap() {
         addStep("Multiply", .8, "50-100");
         addStep("Range", "1.5", "30-55", "45-55", "40-60");
         addStep("Smooth", 2);
-        addStep("Hill", "1.5", "25-35", "25-30", "20-80");
-        addStep("Hill", "1", "25-35", "75-80", "20-80");
-        addStep("Hill", "0.5", "20-25", "10-15", "15-25");
+        addStep("Hill", "1.5", "25-35", "25-30", "20-75");
+        addStep("Hill", "1", "25-35", "75-80", "25-75");
+        addStep("Hill", "0.5", "20-25", "10-15", "20-25");
       }
 
       else if (template === "templateHighIsland") {
-        addStep("Hill", "1", "90-100", "60-80", "45-55");
-        addStep("Add", 4, "all");
-        addStep("Hill", "4-6", "25-35", "25-60", "35-65");
+        addStep("Hill", "1", "90-100", "65-75", "47-53");
+        addStep("Add", 5, "all");
+        addStep("Hill", "6", "20-23", "25-55", "45-55");
         addStep("Range", "1", "40-50", "45-55", "45-55");
-        addStep("Smooth", 3);
-        addStep("Trough", "3", "20-30", "15-85", "20-30");
-        addStep("Trough", "3", "20-30", "15-85", "70-80");
-        addStep("Hill", "1.5", "10-15", "5-15", "20-80");
-        addStep("Hill", "1", "10-15", "85-95", "70-80");
+        addStep("Smooth", 2);
+        addStep("Trough", "2-3", "20-30", "20-30", "20-30");
+        addStep("Trough", "2-3", "20-30", "60-80", "70-80");
+        addStep("Hill", "1", "10-15", "60-60", "50-50");
+        addStep("Hill", "1.5", "13-16", "15-20", "20-75");
         addStep("Multiply", .8, "20-100");
-        addStep("Range", "1.5", "30-40", "15-85", "20-30");
-        addStep("Range", "1.5", "30-40", "15-85", "70-80");
-        addStep("Pit", "3-5", "10-15", "15-85", "20-80");
+        addStep("Range", "1.5", "30-40", "15-85", "30-40");
+        addStep("Range", "1.5", "30-40", "15-85", "60-70");
+        addStep("Pit", "2-3", "10-15", "15-85", "20-80");
       }
 
       else if (template === "templateLowIsland") {
-        addStep("Hill", "1", "90-100", "60-80", "45-55");
-        addStep("Hill", "4-5", "25-35", "25-60", "35-65");
+        addStep("Hill", "1", "90-99", "60-80", "45-55");
+        addStep("Hill", "4-5", "25-35", "20-65", "40-60");
         addStep("Range", "1", "40-50", "45-55", "45-55");
         addStep("Smooth", 3);
         addStep("Trough", "1.5", "20-30", "15-85", "20-30");
@@ -627,34 +627,31 @@ function editHeightmap() {
       }
 
       else if (template === "templateContinents") {
-        addStep("Hill", "1", "80-90", "75-80", "35-65");
-        addStep("Hill", "1", "80-90", "20-25", "35-65");
+        addStep("Hill", "1", "80-85", "75-80", "40-60");
+        addStep("Hill", "1", "80-85", "20-25", "40-60");
         addStep("Multiply", .22, "20-100");
-        addStep("Hill", "5-6", "15-20", "20-80", "10-90");
-        addStep("Strait", "3-5", "vertical");
+        addStep("Hill", "5-6", "15-20", "25-75", "20-82");
         addStep("Range", ".8", "30-60", "5-15", "20-45");
         addStep("Range", ".8", "30-60", "5-15", "55-80");
         addStep("Range", "0-3", "30-60", "80-90", "20-80");
-        addStep("Trough", "2-3", "20-40", "15-85", "20-80");
-        addStep("Strait", "1-2", "vertical");
-        addStep("Smooth", 3);
-        addStep("Hill", "1-2", "5-10", "20-80", "10-90");
+        addStep("Trough", "3-4", "15-20", "15-85", "20-80");
+        addStep("Strait", "2", "vertical");
+        addStep("Smooth", 2);
         addStep("Trough", "1-2", "5-10", "45-55", "45-55");
         addStep("Pit", "3-4", "10-15", "15-85", "20-80");
+        addStep("Hill", "1", "5-10", "40-60", "40-60");
       }
 
       else if (template === "templateArchipelago") {
-        addStep("Hill", "1", "50-70", "50-80", "30-80");
-        addStep("Hill", "1", "30-40", "15-25", "20-30");
-        addStep("Multiply", .8, "20-100");
-        addStep("Range", "2-3", "40-60", "15-85", "20-80");
-        addStep("Hill", "8-10", "15-20", "5-95", "5-95");
-        addStep("Strait", "0-3", "vertical");
-        addStep("Strait", "0-3", "horizontal");
-        addStep("Smooth", 2);
-        addStep("Hill", "3-4", "10-15", "10-30", "80-90");
-        addStep("Hill", "3-4", "10-15", "60-90", "10-20");
-        addStep("Trough", "10-12", "15-20", "5-95", "5-95");
+        addStep("Add", 11, "all");
+        addStep("Range", "2-3", "40-60", "20-80", "20-80");
+        addStep("Hill", "5", "15-20", "10-90", "30-70");
+        addStep("Hill", "2", "10-15", "10-30", "20-80");
+        addStep("Hill", "2", "10-15", "60-90", "20-80");
+        addStep("Smooth", 3);
+        addStep("Trough", "10", "20-30", "5-95", "5-95");
+        addStep("Strait", "2", "vertical");
+        addStep("Strait", "2", "horizontal");
       }
 
       else if (template === "templateAtoll") {
