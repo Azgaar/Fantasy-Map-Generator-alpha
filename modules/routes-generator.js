@@ -62,37 +62,41 @@
     const cells = pack.cells, allPorts = pack.burgs.filter(b => b.port != 0 && !b.removed);
     if (allPorts.length < 2) return [];
     const bodies = new Set(allPorts.map(b => b.port)); // features with ports
-    let paths = []; // array to store path segments
+    let from = [], exit = null, path = [], paths = []; // array to store path segments
 
     bodies.forEach(function(f) {
       const ports = allPorts.filter(b => b.port === f);
       if (ports.length < 2) return;
       const first = ports[0].cell;
 
+      // directly connect first port with the farthest one on the same island to remove gap
+      if (pack.features[f].type !== "lake") {
+        const portsOnIsland = ports.filter(b => cells.f[b.cell] === cells.f[first]);
+        if (portsOnIsland.length > 3) {
+          const opposite = ports[d3.scan(portsOnIsland, (a, b) => ((b.y - ports[0].y) ** 2 + (b.x - ports[0].x) ** 2) - ((a.y - ports[0].y) ** 2 + (a.x - ports[0].x) ** 2))].cell;
+          //debug.append("circle").attr("r", 1).attr("fill", "blue").attr("cx", pack.cells.p[first][0]).attr("cy", pack.cells.p[first][1])
+          //debug.append("circle").attr("r", 1).attr("fill", "green").attr("cx", pack.cells.p[opposite][0]).attr("cy", pack.cells.p[opposite][1])
+          [from, exit] = findOceanPath(opposite, first);
+          from[first] = cells.haven[first];
+          path = restorePath(opposite, first, "ocean", from);
+          paths = paths.concat(path);
+        }
+      }
+
       // directly connect first port with the farthest one
       const farthest = ports[d3.scan(ports, (a, b) => ((b.y - ports[0].y) ** 2 + (b.x - ports[0].x) ** 2) - ((a.y - ports[0].y) ** 2 + (a.x - ports[0].x) ** 2))].cell;
-      let from = findDirectOceanPath(farthest, first);
+      [from, exit] = findOceanPath(farthest, first);
       from[first] = cells.haven[first];
-      let path = restorePath(farthest, first, "ocean", from);
+      path = restorePath(farthest, first, "ocean", from);
       paths = paths.concat(path);
-
-      // directly connect first port with the farthest one on the same island to remove gap
-      const portsOnIsland = ports.filter(b => cells.f[b.cell] === cells.f[first]);
-      if (portsOnIsland.length > 3) {
-        const opposite = ports[d3.scan(portsOnIsland, (a, b) => ((b.y - ports[0].y) ** 2 + (b.x - ports[0].x) ** 2) - ((a.y - ports[0].y) ** 2 + (a.x - ports[0].x) ** 2))].cell;
-        from = findDirectOceanPath(opposite, first);
-        from[first] = cells.haven[first];
-        path = restorePath(opposite, first, "ocean", from);
-        paths = paths.concat(path);
-      }
 
       // indirectly connect first port with all other ports
       if (ports.length < 3) return;
-      from = findIndirectOceanPath(first);
       for (const p of ports) {
         if (p.cell === first || p.cell === farthest) continue;
-        from[p.cell] = cells.haven[p.cell];
-        const path = restorePath(first, p.cell, "ocean", from);
+        [from, exit] = findOceanPath(p.cell, first, true);
+        //from[exit] = cells.haven[exit];
+        const path = restorePath(p.cell, exit, "ocean", from);
         paths = paths.concat(path);
       }
 
@@ -162,11 +166,10 @@
 
     while (queue.length) {
       const next = queue.dequeue(), n = next.e, p = next.p;
+      if (toRoad && cells.road[n]) return [from, n];
 
       for (const c of cells.c[n]) {
         if (cells.h[c] < 20) continue; // ignore water cells
-        if (toRoad && cells.road[n]) return [from, n];
-
         const habitedCost = 100 - biomesData.habitability[cells.biome[c]];
         const heightCost = Math.abs(cells.h[c] - cells.h[n]) * 10;
         const cellCoast = basicCost + habitedCost + heightCost;
@@ -219,8 +222,8 @@
     return path;
   }
 
-  // Dijkstra's algorithm to find a land path from one cell to another cell
-  function findDirectOceanPath(start, end) {
+  // find water paths
+  function findOceanPath(start, exit = null, toRoute = null) {
     const cells = pack.cells;
     const queue = new PriorityQueue({comparator: (a, b) => a.p - b.p});
     const cost = [], from = [];
@@ -228,46 +231,22 @@
 
     while (queue.length) {
       const next = queue.dequeue(), n = next.e, p = next.p;
+      if (toRoute && n !== start && cells.road[n]) return [from, n];
 
       for (const c of cells.c[n]) {
-        if (c === end) return from; // end is reached
-        if (cells.h[c] >= 20) continue; // ignore land non-port cells
+        if (cells.h[c] >= 20) continue; // ignore land cells
         const dist2 = (cells.p[c][1] - cells.p[n][1]) ** 2 + (cells.p[c][0] - cells.p[n][0]) ** 2;
-        const totalCost = p + dist2 + cells.road[c] * 50 + (cells.t[c] ? 1 : 100);
+        const totalCost = p + (cells.road[c] ? 1 + dist2 / 2 : dist2 + (cells.t[c] ? 1 : 100));
 
         if (from[c] || totalCost >= cost[c]) continue;
-        cost[c] = totalCost;
         from[c] = n;
+        if (c === exit) return [from, exit];
+        cost[c] = totalCost;
         queue.queue({e: c, p: totalCost});
       }
 
     }
-    return from;
-  }
-
-  // find water paths from one port to all cells of theat water body
-  function findIndirectOceanPath(start) {
-    const cells = pack.cells;
-    const queue = new PriorityQueue({comparator: (a, b) => a.p - b.p});
-    const cost = [], from = [];
-    queue.queue({e: start, p: 0});
-
-    while (queue.length) {
-      const next = queue.dequeue(), n = next.e, p = next.p;
-
-      for (const c of cells.c[n]) {
-        if (cells.h[c] >= 20) continue; // ignore land non-port cells
-        const dist2 = (cells.p[c][1] - cells.p[n][1]) ** 2 + (cells.p[c][0] - cells.p[n][0]) ** 2;
-        const totalCost = p + (cells.road[c] ? 1 : dist2 + (cells.t[c] ? 1 : 100));
-
-        if (from[c] || totalCost >= cost[c]) continue;
-        cost[c] = totalCost;
-        from[c] = n;
-        queue.queue({e: c, p: totalCost});
-      }
-
-    }
-    return from;
+    return [from, exit];
   }
 
 })));
