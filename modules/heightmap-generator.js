@@ -10,7 +10,7 @@
     console.time('generateHeightmap');
     cells = grid.cells;
     p = grid.points;
-    cells.h = new Uint8Array(grid.points.length);  
+    cells.h = new Uint8Array(grid.points.length);
 
     const input = document.getElementById("templateInput");
     if (!locked("template")) {

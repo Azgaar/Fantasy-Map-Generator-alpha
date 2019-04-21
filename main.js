@@ -929,14 +929,15 @@ function drawCoastline() {
     const points = connectedVertices.map(v => vertices.p[v]);
 
     const path = round(lineGen(points));
+    const id = features[f].group + features[f].i;
     if (features[f].type === "lake") {
       landMask.append("path").attr("d", path).attr("fill", "black");
       //waterMask.append("path").attr("d", path).attr("fill", "white"); // uncomment to show over lakes
-      lakes.select("#"+features[f].group).append("path").attr("d", path).attr("id", "lake"+features[f].i); // draw the lake
+      lakes.select("#"+features[f].group).append("path").attr("d", path).attr("id", id); // draw the lake
     } else {
       landMask.append("path").attr("d", path).attr("fill", "white");
       waterMask.append("path").attr("d", path).attr("fill", "black");
-      coastline.append("path").attr("d", path); // draw the coastline
+      coastline.append("path").attr("d", path).attr("id", id); // draw the coastline
     }
 
     // draw ruler to cover the biggest land piece
@@ -983,6 +984,7 @@ function drawCoastline() {
 function reMarkFeatures() {
   console.time("reMarkFeatures");
   const cells = pack.cells, features = pack.features = [0];
+  const continentCells = grid.cells.i.length / 10, islandCell = continentCells / 50;
   cells.f = new Uint16Array(cells.i.length); // cell feature number
   cells.t = new Int8Array(cells.i.length); // cell type: 1 = land along coast; -1 = water along coast;
   cells.haven = new Uint16Array(cells.i.length); // cell haven (opposite water cell);
@@ -1016,8 +1018,12 @@ function reMarkFeatures() {
         }
       });
     }
+
     const type = land ? "island" : border ? "ocean" : "lake";
-    const group = type === "lake" ? temp < 25 ? "freshwater" : "salt" : null;
+    let group;
+    if (type === "lake") group = temp < 25 ? "freshwater" : "salt"; else
+    if (type === "ocean") group = "ocean"; else
+    if (type === "island") group = cellNumber > continentCells ? "continent" : cellNumber > islandCell ? "island" : "isle";
     features.push({i, land, border, type, cells: cellNumber, group});
     queue[0] = cells.f.findIndex(f => !f); // find unmarked cell
   }

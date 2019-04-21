@@ -125,8 +125,8 @@ function updateCellInfo(point, i, g) {
   infoPopulation.innerHTML = getFriendlyPopulation(i);
   infoBurg.innerHTML = cells.burg[i] ? pack.burgs[cells.burg[i]].name + " (" + cells.burg[i] + ")" : "no";
   const f = cells.f[i];
-  infoFeature.innerHTML = f ? pack.features[f].type + " (" + f + ")" : "n/a";
-  infoBiome.innerHTML = biomesData.name[cells.biome[i]];  
+  infoFeature.innerHTML = f ? pack.features[f].group + " (" + f + ")" : "n/a";
+  infoBiome.innerHTML = biomesData.name[cells.biome[i]];
 }
 
 // return value (v) if defined with number of decimals (d), else return "no" or attribute (r)
