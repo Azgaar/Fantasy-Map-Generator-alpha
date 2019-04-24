@@ -213,6 +213,8 @@ document.addEventListener("keydown", function(event) {
   else if (key === 9) {toggleOptions(event); event.preventDefault();} // Tab to toggle options
   else if (ctrl && key === 80) saveAsImage("png"); // Ctrl + "P" to save as PNG
   else if (ctrl && key === 83) saveAsImage("svg"); // Ctrl + "S" to save as SVG
+  else if (shift && key === 79) saveGeo("osm"); // Shift + "O" to save as OSM
+  else if (shift && key === 74) saveGeo("json"); // Shift + "J" to save as JSON
   else if (ctrl && key === 77) saveMap(); // Ctrl + "M" to save MAP file
   else if (ctrl && key === 76) mapToLoad.click(); // Ctrl + "L" to load MAP
   else if (key === 46) removeElementOnKey(); // "Delete" to remove the selected element
