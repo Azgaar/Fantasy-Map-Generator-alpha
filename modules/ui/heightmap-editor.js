@@ -1,29 +1,38 @@
-// heightmap-editor module. To be added to window as for now
 "use strict";
 
 function editHeightmap() {
-  void function selectEditMode() {
-    alertMessage.innerHTML = `<p>Heightmap is a core element on which all other data (rivers, burgs, states etc) is based.
-    So the best edit approach is to <i>erase</i> the secondary data and let the system automatically regenerate it on edit completion.</p> 
+  void (function selectEditMode() {
+    alertMessage.innerHTML = `Heightmap is a core element on which all other data (rivers, burgs, states etc) is based.
+      So the best edit approach is to <i>erase</i> the secondary data and let the system automatically regenerate it on edit completion.
+      <p><i>Erase</i> mode also allows you Convert an Image into a heightmap or use Template Editor.</p>
+      <p>You can <i>keep</i> the data, but you won't be able to change the coastline.</p>
+      <p>Try <i>risk</i> mode to change the coastline and keep the data. The data will be restored as much as possible, but it can cause unpredictable errors.</p>
+      <p>Please <span class="pseudoLink" onclick=saveMap(); editHeightmap();>save the map</span> before editing the heightmap!</p>
+      <p>Check out ${link("https://github.com/Azgaar/Fantasy-Map-Generator/wiki/Heightmap-customization", "wiki")} for guidance.</p>`;
 
-    <p>You can also <i>keep</i> all the data as is, but you won't be able to change the coastline.</p>
-
-    <p>If you need to change the coastline and keep the data, you may try the <i>risk</i> edit option. 
-    The secondary data will be kept with burgs placed on water being be removed, 
-    but the landmass change can cause unexpected data fluctuation and errors.</p>`;
-
-    $("#alert").dialog({resizable: false, title: "Edit Heightmap", width: 300,
+    $("#alert").dialog({
+      resizable: false,
+      title: "Edit Heightmap",
+      width: "28em",
       buttons: {
-        Erase: function() {enterHeightmapEditMode("erase");},
-        Keep: function() {enterHeightmapEditMode("keep");},
-        Risk: function() {enterHeightmapEditMode("risk");},
-        Cancel: function() {$(this).dialog("close");}
+        Erase: function () {
+          enterHeightmapEditMode("erase");
+        },
+        Keep: function () {
+          enterHeightmapEditMode("keep");
+        },
+        Risk: function () {
+          enterHeightmapEditMode("risk");
+        },
+        Cancel: function () {
+          $(this).dialog("close");
+        }
       }
     });
-  }()
+  })();
 
-  let edits = [];
   restartHistory();
+  viewbox.insert("g", "#terrs").attr("id", "heights");
 
   if (modules.editHeightmap) return;
   modules.editHeightmap = true;
@@ -33,14 +42,16 @@ function editHeightmap() {
   document.getElementById("applyTemplate").addEventListener("click", openTemplateEditor);
   document.getElementById("convertImage").addEventListener("click", openImageConverter);
   document.getElementById("heightmapPreview").addEventListener("click", toggleHeightmapPreview);
-  document.getElementById("perspectiveView").addEventListener("click", openPerspectivePanel);
+  document.getElementById("heightmap3DView").addEventListener("click", changeViewMode);
   document.getElementById("finalizeHeightmap").addEventListener("click", finalizeHeightmap);
   document.getElementById("renderOcean").addEventListener("click", mockHeightmap);
-  document.getElementById("templateUndo").addEventListener("click", () => restoreHistory(edits.n-1));
-  document.getElementById("templateRedo").addEventListener("click", () => restoreHistory(edits.n+1));
+  document.getElementById("templateUndo").addEventListener("click", () => restoreHistory(edits.n - 1));
+  document.getElementById("templateRedo").addEventListener("click", () => restoreHistory(edits.n + 1));
 
   function enterHeightmapEditMode(type) {
-    editHeightmap.layers = getLayersState();
+    editHeightmap.layers = Array.from(mapLayers.querySelectorAll("li:not(.buttonoff)")).map(node => node.id); // store layers preset
+    editHeightmap.layers.forEach(l => document.getElementById(l).click()); // turn off all layers
+
     customization = 1;
     closeDialogs();
     tip('Heightmap edit mode is active. Click on "Exit Customization" to finalize the heightmap', true);
@@ -49,22 +60,35 @@ function editHeightmap() {
     heightmapEditMode.innerHTML = type;
 
     if (type === "erase") {
-      terrs.attr("mask", null);
       undraw();
       changeOnlyLand.checked = false;
     } else if (type === "keep") {
-      viewbox.selectAll("#landmass, #lakes").attr("display", "none");
+      viewbox.selectAll("#landmass, #lakes").style("display", "none");
       changeOnlyLand.checked = true;
     } else if (type === "risk") {
-      terrs.attr("mask", null);
       defs.selectAll("#land, #water").selectAll("path").remove();
-      viewbox.selectAll("#coastline *, #lakes *, #oceanLayers path").remove();
+      viewbox.selectAll("#coastline path, #lakes path, #oceanLayers path").remove();
       changeOnlyLand.checked = false;
     }
 
-    // hide convert and template buttons for the Keep mode
-    applyTemplate.style.display = type === "keep" ? "none" : "inline-block";
-    convertImage.style.display = type === "keep" ? "none" : "inline-block";
+    // show convert and template buttons for Erase mode only
+    applyTemplate.style.display = type === "erase" ? "inline-block" : "none";
+    convertImage.style.display = type === "erase" ? "inline-block" : "none";
+
+    // hide erosion checkbox if mode is Keep
+    allowErosionBox.style.display = type === "keep" ? "none" : "inline-block";
+
+    // show finalize button
+    if (!sessionStorage.getItem("noExitButtonAnimation")) {
+      sessionStorage.setItem("noExitButtonAnimation", true);
+      exitCustomization.style.opacity = 0;
+      const width = 12 * uiSizeOutput.value * 11;
+      exitCustomization.style.right = (svgWidth - width) / 2 + "px";
+      exitCustomization.style.bottom = svgHeight / 2 + "px";
+      exitCustomization.style.transform = "scale(2)";
+      exitCustomization.style.display = "block";
+      d3.select("#exitCustomization").transition().duration(1000).style("opacity", 1).transition().duration(2000).ease(d3.easeSinInOut).style("right", "10px").style("bottom", "10px").style("transform", "scale(1)");
+    } else exitCustomization.style.display = "block";
 
     openBrushesPanel();
     turnButtonOn("toggleHeight");
@@ -74,134 +98,178 @@ function editHeightmap() {
     viewbox.on("touchmove mousemove", moveCursor);
   }
 
-  function getLayersState() {
-    const layers = [];
-    mapLayers.querySelectorAll("li").forEach(l => {
-      if (l.id === "toggleScaleBar") return;
-      if (!l.classList.contains("buttonoff")) {layers.push(l.id); l.click();}
-    });
-    return layers;
-  }
-
   function moveCursor() {
-    const p = d3.mouse(this), cell = findGridCell(p[0], p[1]);
+    const p = d3.mouse(this),
+      cell = findGridCell(p[0], p[1]);
     heightmapInfoX.innerHTML = rn(p[0]);
     heightmapInfoY.innerHTML = rn(p[1]);
     heightmapInfoCell.innerHTML = cell;
-    heightmapInfoHeight.innerHTML = grid.cells.h[cell];
-
-    tip("Height: " + getFriendlyHeight(grid.cells.h[cell]));
+    heightmapInfoHeight.innerHTML = `${grid.cells.h[cell]} (${getHeight(grid.cells.h[cell])})`;
+    if (tooltip.dataset.main) showMainTip();
 
     // move radius circle if drag mode is active
-    const pressed = document.querySelector("#brushesButtons > button.pressed");
+    const pressed = document.getElementById("brushesButtons").querySelector("button.pressed");
     if (!pressed) return;
     moveCircle(p[0], p[1], brushRadius.valueAsNumber, "#333");
   }
 
+  // get user-friendly (real-world) height value from map data
+  function getHeight(h) {
+    const unit = heightUnit.value;
+    let unitRatio = 3.281; // default calculations are in feet
+    if (unit === "m") unitRatio = 1;
+    // if meter
+    else if (unit === "f") unitRatio = 0.5468; // if fathom
+
+    let height = -990;
+    if (h >= 20) height = Math.pow(h - 18, +heightExponentInput.value);
+    else if (h < 20 && h > 0) height = ((h - 20) / h) * 50;
+
+    return rn(height * unitRatio) + " " + unit;
+  }
+
   // Exit customization mode
   function finalizeHeightmap() {
-    if (terrs.selectAll("*").size() < 200) {
-      tip("Insufficient land area! There should be at least 200 land cells to finalize the heightmap", null, "error");
-      return;
-    }
+    if (viewbox.select("#heights").selectAll("*").size() < 200) return tip("Insufficient land area! There should be at least 200 land cells to finalize the heightmap", null, "error");
+    if (document.getElementById("imageConverter").offsetParent) return tip("Please exit the Image Conversion mode first", null, "error");
+
+    delete window.edits; // remove global variable
+    redo.disabled = templateRedo.disabled = true;
+    undo.disabled = templateUndo.disabled = true;
 
     customization = 0;
     customizationMenu.style.display = "none";
-    toolsContent.style.display = "block";
+    if (document.getElementById("options").querySelector(".tab > button.active").id === "toolsTab") toolsContent.style.display = "block";
+    layersPreset.disabled = false;
+    exitCustomization.style.display = "none"; // hide finalize button
     restoreDefaultEvents();
     clearMainTip();
     closeDialogs();
     resetZoom();
 
-    restartHistory();
     if (document.getElementById("preview")) document.getElementById("preview").remove();
+    if (document.getElementById("canvas3d")) enterStandardView();
 
     const mode = heightmapEditMode.innerHTML;
     if (mode === "erase") regenerateErasedData();
     else if (mode === "keep") restoreKeptData();
     else if (mode === "risk") restoreRiskedData();
 
-    terrs.selectAll("*").remove();
+    // restore initial layers
+    //viewbox.select("#heights").remove();
+    document.getElementById("heights").remove();
     turnButtonOff("toggleHeight");
-    changePreset("landmass");
-    editHeightmap.layers.forEach(l => document.getElementById(l).click());
-    layersPreset.disabled = false;
+    document
+      .getElementById("mapLayers")
+      .querySelectorAll("li")
+      .forEach(function (e) {
+        if (editHeightmap.layers.includes(e.id) && !layerIsOn(e.id)) e.click();
+        // turn on
+        else if (!editHeightmap.layers.includes(e.id) && layerIsOn(e.id)) e.click(); // turn off
+      });
+    getCurrentPreset();
   }
 
   function regenerateErasedData() {
-    console.group("Edit Heightmap");
-    console.time("regenerateErasedData");
-    terrs.attr("mask", "url(#land)");
+    INFO && console.group("Edit Heightmap");
+    TIME && console.time("regenerateErasedData");
 
-    const change = changeHeights.checked;
+    const erosionAllowed = allowErosion.checked;
     markFeatures();
-    if (change) openNearSeaLakes();
+    markupGridOcean();
+    if (erosionAllowed) {
+      addLakesInDeepDepressions();
+      openNearSeaLakes();
+    }
     OceanLayers();
     calculateTemperatures();
     generatePrecipitation();
     reGraph();
     drawCoastline();
 
-    elevateLakes();
-    resolveDepressions();
-    Rivers.generate();
-    
-    if (!change) {
+    Rivers.generate(erosionAllowed);
+
+    if (!erosionAllowed) {
       for (const i of pack.cells.i) {
         const g = pack.cells.g[i];
         if (pack.cells.h[i] !== grid.cells.h[g] && pack.cells.h[i] >= 20 === grid.cells.h[g] >= 20) pack.cells.h[i] = grid.cells.h[g];
       }
     }
 
+    drawRivers();
+    Lakes.defineGroup();
     defineBiomes();
-
     rankCells();
     Cultures.generate();
     Cultures.expand();
     BurgsAndStates.generate();
+    Religions.generate();
+    BurgsAndStates.defineStateForms();
+    BurgsAndStates.generateProvinces();
+    BurgsAndStates.defineBurgFeatures();
+
+    drawStates();
+    drawBorders();
     BurgsAndStates.drawStateLabels();
-    console.timeEnd("regenerateErasedData");
-    console.groupEnd("Edit Heightmap");
+
+    Rivers.specify();
+    Lakes.generateName();
+
+    Military.generate();
+    addMarkers();
+    addZones();
+    TIME && console.timeEnd("regenerateErasedData");
+    INFO && console.groupEnd("Edit Heightmap");
   }
 
   function restoreKeptData() {
-    viewbox.selectAll("#landmass, #lakes").attr("display", null);
+    viewbox.selectAll("#landmass, #lakes").style("display", null);
     for (const i of pack.cells.i) {
       pack.cells.h[i] = grid.cells.h[pack.cells.g[i]];
     }
   }
 
   function restoreRiskedData() {
-    console.group("Edit Heightmap");
-    console.time("restoreRiskedData");
-    terrs.attr("mask", "url(#land)");
+    INFO && console.group("Edit Heightmap");
+    TIME && console.time("restoreRiskedData");
+    const erosionAllowed = allowErosion.checked;
 
     // assign pack data to grid cells
-    const change = changeHeights.checked;
     const l = grid.cells.i.length;
     const biome = new Uint8Array(l);
-    const conf = new Uint8Array(l);
-    const culture = new Int8Array(l);
-    const fl = new Uint16Array(l);
     const pop = new Uint16Array(l);
-    const r = new Uint16Array(l);
     const road = new Uint16Array(l);
+    const crossroad = new Uint16Array(l);
     const s = new Uint16Array(l);
-    const state = new Uint8Array(l);
-    const burg = new Uint8Array(l);
+    const burg = new Uint16Array(l);
+    const state = new Uint16Array(l);
+    const province = new Uint16Array(l);
+    const culture = new Uint16Array(l);
+    const religion = new Uint16Array(l);
+
+    // rivers data, stored only if allowErosion is unchecked
+    const fl = new Uint16Array(l);
+    const r = new Uint16Array(l);
+    const conf = new Uint8Array(l);
 
     for (const i of pack.cells.i) {
       const g = pack.cells.g[i];
       biome[g] = pack.cells.biome[i];
-      conf[g] = pack.cells.conf[i];
       culture[g] = pack.cells.culture[i];
-      fl[g] = pack.cells.fl[i];
       pop[g] = pack.cells.pop[i];
-      r[g] = pack.cells.r[i];
       road[g] = pack.cells.road[i];
+      crossroad[g] = pack.cells.crossroad[i];
       s[g] = pack.cells.s[i];
       state[g] = pack.cells.state[i];
+      province[g] = pack.cells.province[i];
       burg[g] = pack.cells.burg[i];
+      religion[g] = pack.cells.religion[i];
+
+      if (!erosionAllowed) {
+        fl[g] = pack.cells.fl[i];
+        r[g] = pack.cells.r[i];
+        conf[g] = pack.cells.conf[i];
+      }
     }
 
     // do not allow to remove land with burgs
@@ -210,74 +278,158 @@ function editHeightmap() {
       if (grid.cells.h[i] < 20) grid.cells.h[i] = 20;
     }
 
+    // save culture centers x and y to restore center cell id after re-graph
+    for (const c of pack.cultures) {
+      if (!c.i || c.removed) continue;
+      const p = pack.cells.p[c.center];
+      c.x = p[0];
+      c.y = p[1];
+    }
+
+    // recalculate zones to grid
+    zones.selectAll("g").each(function () {
+      const zone = d3.select(this);
+      const dataCells = zone.attr("data-cells");
+      const cells = dataCells ? dataCells.split(",").map(i => +i) : [];
+      const g = cells.map(i => pack.cells.g[i]);
+      zone.attr("data-cells", g);
+      zone.selectAll("*").remove();
+    });
+
     markFeatures();
+    markupGridOcean();
+    if (erosionAllowed) addLakesInDeepDepressions();
     OceanLayers();
     calculateTemperatures();
     generatePrecipitation();
     reGraph();
     drawCoastline();
 
-    if (change) {
-      elevateLakes();
-      resolveDepressions();
-      Rivers.generate();
-      defineBiomes();
-    }
+    if (erosionAllowed) Rivers.generate(true);
 
     // assign saved pack data from grid back to pack
     const n = pack.cells.i.length;
-    pack.cells.burg = new Uint16Array(n);
-    pack.cells.culture = new Int8Array(n);
-    pack.cells.pop = new Uint16Array(n);
+    pack.cells.pop = new Float32Array(n);
     pack.cells.road = new Uint16Array(n);
+    pack.cells.crossroad = new Uint16Array(n);
     pack.cells.s = new Uint16Array(n);
-    pack.cells.state = new Uint8Array(n);
+    pack.cells.burg = new Uint16Array(n);
+    pack.cells.state = new Uint16Array(n);
+    pack.cells.province = new Uint16Array(n);
+    pack.cells.culture = new Uint16Array(n);
+    pack.cells.religion = new Uint16Array(n);
+    pack.cells.biome = new Uint8Array(n);
 
-    if (!change) {
+    if (!erosionAllowed) {
       pack.cells.r = new Uint16Array(n);
       pack.cells.conf = new Uint8Array(n);
       pack.cells.fl = new Uint16Array(n);
-      pack.cells.biome = new Uint8Array(n);
     }
 
     for (const i of pack.cells.i) {
       const g = pack.cells.g[i];
-      const land = pack.cells.h[i] >= 20;
+      const isLand = pack.cells.h[i] >= 20;
 
-      if (!change) {
+      // check biome
+      pack.cells.biome[i] = isLand && biome[g] ? biome[g] : getBiomeId(grid.cells.prec[g], grid.cells.temp[g], pack.cells.h[i]);
+
+      // rivers data
+      if (!erosionAllowed) {
         pack.cells.r[i] = r[g];
         pack.cells.conf[i] = conf[g];
         pack.cells.fl[i] = fl[g];
-        if (land && !biome[g]) pack.cells.biome[i] = getBiomeId(grid.cells.prec[g], grid.cells.temp[g]); else 
-        if (!land && biome[g]) pack.cells.biome[i] = 0; else
-        pack.cells.biome[i] = biome[g];
       }
 
-      if (!land) continue;
+      if (!isLand) continue;
       pack.cells.culture[i] = culture[g];
       pack.cells.pop[i] = pop[g];
       pack.cells.road[i] = road[g];
+      pack.cells.crossroad[i] = crossroad[g];
       pack.cells.s[i] = s[g];
       pack.cells.state[i] = state[g];
+      pack.cells.province[i] = province[g];
+      pack.cells.religion[i] = religion[g];
     }
 
+    // find closest land cell to burg
+    const findBurgCell = function (x, y) {
+      let i = findCell(x, y);
+      if (pack.cells.h[i] >= 20) return i;
+      const dist = pack.cells.c[i].map(c => (pack.cells.h[c] < 20 ? Infinity : (pack.cells.p[c][0] - x) ** 2 + (pack.cells.p[c][1] - y) ** 2));
+      return pack.cells.c[i][d3.scan(dist)];
+    };
+
+    // find best cell for burgs
     for (const b of pack.burgs) {
-      if (!b.i) continue;
-      b.cell = findCell(b.x, b.y);
+      if (!b.i || b.removed) continue;
+      b.cell = findBurgCell(b.x, b.y);
       b.feature = pack.cells.f[b.cell];
+
       pack.cells.burg[b.cell] = b.i;
       if (!b.capital && pack.cells.h[b.cell] < 20) removeBurg(b.i);
       if (b.capital) pack.states[b.state].center = b.cell;
     }
 
-    console.timeEnd("restoreRiskedData");
-    console.groupEnd("Edit Heightmap");
+    for (const p of pack.provinces) {
+      if (!p.i || p.removed) continue;
+      const provCells = pack.cells.i.filter(i => pack.cells.province[i] === p.i);
+      if (!provCells.length) {
+        const state = p.state;
+        const stateProvs = pack.states[state].provinces;
+        if (stateProvs.includes(p.i)) pack.states[state].provinces.splice(stateProvs.indexOf(p), 1);
+
+        p.removed = true;
+        continue;
+      }
+
+      if (p.burg && !pack.burgs[p.burg].removed) p.center = pack.burgs[p.burg].cell;
+      else {
+        p.center = provCells[0];
+        p.burg = pack.cells.burg[p.center];
+      }
+    }
+
+    for (const c of pack.cultures) {
+      if (!c.i || c.removed) continue;
+      c.center = findCell(c.x, c.y);
+    }
+
+    BurgsAndStates.drawStateLabels();
+    drawStates();
+    drawBorders();
+
+    if (erosionAllowed) {
+      Rivers.specify();
+      Lakes.generateName();
+    }
+
+    // restore zones from grid
+    zones.selectAll("g").each(function () {
+      const zone = d3.select(this);
+      const g = zone.attr("data-cells");
+      const gCells = g ? g.split(",").map(i => +i) : [];
+      const cells = pack.cells.i.filter(i => gCells.includes(pack.cells.g[i]));
+
+      zone.attr("data-cells", cells);
+      zone.selectAll("*").remove();
+      const base = zone.attr("id") + "_"; // id generic part
+      zone
+        .selectAll("*")
+        .data(cells)
+        .enter()
+        .append("polygon")
+        .attr("points", d => getPackPolygon(d))
+        .attr("id", d => base + d);
+    });
+
+    TIME && console.timeEnd("restoreRiskedData");
+    INFO && console.groupEnd("Edit Heightmap");
   }
 
   // trigger heightmap redraw and history update if at least 1 cell is changed
   function updateHeightmap() {
     const prev = last(edits);
-    const changed = grid.cells.h.reduce((s, h, i) => h !== prev[i] ? s+1 : s, 0);
+    const changed = grid.cells.h.reduce((s, h, i) => (h !== prev[i] ? s + 1 : s), 0);
     tip("Cells changed: " + changed);
     if (!changed) return;
 
@@ -296,8 +448,14 @@ function editHeightmap() {
   function mockHeightmap() {
     const data = renderOcean.checked ? grid.cells.i : grid.cells.i.filter(i => grid.cells.h[i] >= 20);
     const scheme = getColorScheme();
-    terrs.selectAll("polygon").data(data).join("polygon").attr("points", d => getGridPolygon(d))
-      .attr("id", d => "cell"+d).attr("fill", d => getColor(grid.cells.h[d], scheme));
+    viewbox
+      .select("#heights")
+      .selectAll("polygon")
+      .data(data)
+      .join("polygon")
+      .attr("points", d => getGridPolygon(d))
+      .attr("id", d => "cell" + d)
+      .attr("fill", d => getColor(grid.cells.h[d], scheme));
   }
 
   // draw or update heightmap for a selection of cells
@@ -305,18 +463,26 @@ function editHeightmap() {
     const ocean = renderOcean.checked;
     const scheme = getColorScheme();
 
-    selection.forEach(function(i) {
-      let cell = terrs.select("#cell"+i);
-      if (!ocean && grid.cells.h[i] < 20) {cell.remove(); return;}
-      if (!cell.size()) cell = terrs.append("polygon").attr("points", getGridPolygon(i)).attr("id", "cell"+i);
+    selection.forEach(function (i) {
+      let cell = viewbox.select("#heights").select("#cell" + i);
+      if (!ocean && grid.cells.h[i] < 20) {
+        cell.remove();
+        return;
+      }
+      if (!cell.size())
+        cell = viewbox
+          .select("#heights")
+          .append("polygon")
+          .attr("points", getGridPolygon(i))
+          .attr("id", "cell" + i);
       cell.attr("fill", getColor(grid.cells.h[i], scheme));
     });
   }
 
   function updateStatistics() {
-    const landCells = grid.cells.h.reduce((s, h) => h >= 20 ? s+1 : s);
-    landmassCounter.innerHTML = `${landCells} (${rn(landCells/grid.cells.i.length*100)}%)`;
-    landmassAverage.innerHTML = rn(d3.mean(grid.cells.h));    
+    const landCells = grid.cells.h.reduce((s, h) => (h >= 20 ? s + 1 : s));
+    landmassCounter.innerHTML = `${landCells} (${rn((landCells / grid.cells.i.length) * 100)}%)`;
+    landmassAverage.innerHTML = rn(d3.mean(grid.cells.h));
   }
 
   function updateHistory(noStat) {
@@ -327,10 +493,11 @@ function editHeightmap() {
 
     undo.disabled = templateUndo.disabled = edits.n <= 1;
     redo.disabled = templateRedo.disabled = true;
-    if (!noStat) updateStatistics();
-
-    if (document.getElementById("preview")) drawHeightmapPreview(); // update heightmap preview if opened
-    if ($("#perspectivePanel").is(":visible")) drawPerspective(); // update perspective view if opened
+    if (!noStat) {
+      updateStatistics();
+      if (document.getElementById("preview")) drawHeightmapPreview(); // update heightmap preview if opened
+      if (document.getElementById("canvas3d")) ThreeD.redraw(); // update 3d heightmap preview if opened
+    }
   }
 
   // restoreHistory
@@ -342,15 +509,15 @@ function editHeightmap() {
     grid.cells.h = edits[edits.n - 1].slice();
     mockHeightmap();
     updateStatistics();
-    
+
     if (document.getElementById("preview")) drawHeightmapPreview(); // update heightmap preview if opened
-    if ($("#perspectivePanel").is(":visible")) drawPerspective(); // update perspective view if opened    
+    if (document.getElementById("canvas3d")) ThreeD.redraw(); // update 3d heightmap preview if opened
   }
 
   // restart edits from 1st step
   function restartHistory() {
-    edits = [];
-    edits.n = 0;
+    window.edits = []; // declare temp global variable
+    window.edits.n = 0;
     redo.disabled = templateRedo.disabled = true;
     undo.disabled = templateUndo.disabled = true;
     updateHistory();
@@ -358,10 +525,13 @@ function editHeightmap() {
 
   function openBrushesPanel() {
     if ($("#brushesPanel").is(":visible")) return;
-    $("#brushesPanel").dialog({
-      title: "Paint Brushes", minHeight: 40, width: "auto", maxWidth: 200, resizable: false,
-      position: {my: "right top", at: "right-10 top+10", of: "svg"}
-    }).on('dialogclose', exitBrushMode);
+    $("#brushesPanel")
+      .dialog({
+        title: "Paint Brushes",
+        resizable: false,
+        position: {my: "right top", at: "right-10 top+10", of: "svg"}
+      })
+      .on("dialogclose", exitBrushMode);
 
     if (modules.openBrushesPanel) return;
     modules.openBrushesPanel = true;
@@ -369,17 +539,17 @@ function editHeightmap() {
     // add listeners
     document.getElementById("brushesButtons").addEventListener("click", e => toggleBrushMode(e));
     document.getElementById("changeOnlyLand").addEventListener("click", e => changeOnlyLandClick(e));
-    document.getElementById("undo").addEventListener("click", () => restoreHistory(edits.n-1));
-    document.getElementById("redo").addEventListener("click", () => restoreHistory(edits.n+1));  
+    document.getElementById("undo").addEventListener("click", () => restoreHistory(edits.n - 1));
+    document.getElementById("redo").addEventListener("click", () => restoreHistory(edits.n + 1));
     document.getElementById("rescaleShow").addEventListener("click", () => {
       document.getElementById("modifyButtons").style.display = "none";
-      document.getElementById("rescaleSection").style.display = "block";    
+      document.getElementById("rescaleSection").style.display = "block";
     });
     document.getElementById("rescaleHide").addEventListener("click", () => {
       document.getElementById("modifyButtons").style.display = "block";
-      document.getElementById("rescaleSection").style.display = "none";    
-    }); 
-    document.getElementById("rescaler").addEventListener("change", (e) => rescale(e.target.valueAsNumber));
+      document.getElementById("rescaleSection").style.display = "none";
+    });
+    document.getElementById("rescaler").addEventListener("change", e => rescale(e.target.valueAsNumber));
     document.getElementById("rescaleCondShow").addEventListener("click", () => {
       document.getElementById("modifyButtons").style.display = "none";
       document.getElementById("rescaleCondSection").style.display = "block";
@@ -392,7 +562,7 @@ function editHeightmap() {
     document.getElementById("smoothHeights").addEventListener("click", smoothAllHeights);
     document.getElementById("disruptHeights").addEventListener("click", disruptAllHeights);
     document.getElementById("brushClear").addEventListener("click", startFromScratch);
-    
+
     function exitBrushMode() {
       const pressed = document.querySelector("#brushesButtons > button.pressed");
       if (!pressed) return;
@@ -403,12 +573,16 @@ function editHeightmap() {
       document.getElementById("brushesSliders").style.display = "none";
     }
 
+    const dragBrushThrottled = throttle(dragBrush, 100);
     function toggleBrushMode(e) {
-      if (e.target.classList.contains("pressed")) {exitBrushMode(); return;}
+      if (e.target.classList.contains("pressed")) {
+        exitBrushMode();
+        return;
+      }
       exitBrushMode();
       document.getElementById("brushesSliders").style.display = "block";
       e.target.classList.add("pressed");
-      viewbox.style("cursor", "crosshair").call(d3.drag().on("start", dragBrush));
+      viewbox.style("cursor", "crosshair").call(d3.drag().on("start", dragBrushThrottled));
     }
 
     function dragBrush() {
@@ -419,9 +593,11 @@ function editHeightmap() {
       d3.event.on("drag", () => {
         const p = d3.mouse(this);
         moveCircle(p[0], p[1], r, "#333");
+        if (~~d3.event.sourceEvent.timeStamp % 5 != 0) return; // slow down the edit
+
         const inRadius = findGridAll(p[0], p[1], r);
         const selection = changeOnlyLand.checked ? inRadius.filter(i => grid.cells.h[i] >= 20) : inRadius;
-        if (selection && selection.length) changeHeightForSelection(selection, start);        
+        if (selection && selection.length) changeHeightForSelection(selection, start);
       });
 
       d3.event.on("end", updateHeightmap);
@@ -431,17 +607,19 @@ function editHeightmap() {
       const power = brushPower.valueAsNumber;
       const interpolate = d3.interpolateRound(power, 1);
       const land = changeOnlyLand.checked;
-      function lim(v) {return Math.max(Math.min(v, 100), land ? 20 : 0);}
+      function lim(v) {
+        return Math.max(Math.min(v, 100), land ? 20 : 0);
+      }
       const h = grid.cells.h;
 
       const brush = document.querySelector("#brushesButtons > button.pressed").id;
-      if (brush === "brushRaise") s.forEach(i => h[i] = h[i] < 20 ? 20 : lim(h[i] + power)); else
-      if (brush === "brushElevate") s.forEach((i,d) => h[i] = lim(h[i] + interpolate(d/Math.max(s.length-1, 1)))); else
-      if (brush === "brushLower") s.forEach(i => h[i] = lim(h[i] - power)); else
-      if (brush === "brushDepress") s.forEach((i,d) => h[i] = lim(h[i] - interpolate(d/Math.max(s.length-1, 1)))); else
-      if (brush === "brushAlign") s.forEach(i => h[i] = lim(h[start])); else
-      if (brush === "brushSmooth") s.forEach(i => h[i] = rn((d3.mean(grid.cells.c[i].filter(i => land ? h[i] >= 20 : 1).map(c => h[c])) + h[i]*(10-power)) / (11-power),1)); else
-      if (brush === "brushDisrupt") s.forEach(i => h[i] = h[i] < 17 ? h[i] : lim(h[i] + power/2 - Math.random()*power));
+      if (brush === "brushRaise") s.forEach(i => (h[i] = h[i] < 20 ? 20 : lim(h[i] + power)));
+      else if (brush === "brushElevate") s.forEach((i, d) => (h[i] = lim(h[i] + interpolate(d / Math.max(s.length - 1, 1)))));
+      else if (brush === "brushLower") s.forEach(i => (h[i] = lim(h[i] - power)));
+      else if (brush === "brushDepress") s.forEach((i, d) => (h[i] = lim(h[i] - interpolate(d / Math.max(s.length - 1, 1)))));
+      else if (brush === "brushAlign") s.forEach(i => (h[i] = lim(h[start])));
+      else if (brush === "brushSmooth") s.forEach(i => (h[i] = rn((d3.mean(grid.cells.c[i].filter(i => (land ? h[i] >= 20 : 1)).map(c => h[c])) + h[i] * (10 - power) + 0.6) / (11 - power), 1)));
+      else if (brush === "brushDisrupt") s.forEach(i => (h[i] = h[i] < 15 ? h[i] : lim(h[i] + power / 1.6 - Math.random() * power)));
 
       mockHeightmapSelection(s);
       // updateHistory(); uncomment to update history every step
@@ -455,7 +633,7 @@ function editHeightmap() {
 
     function rescale(v) {
       const land = changeOnlyLand.checked;
-      grid.cells.h = grid.cells.h.map(h => land && (h < 20 || h+v < 20) ? h : lim(h+v));
+      grid.cells.h = grid.cells.h.map(h => (land && (h < 20 || h + v < 20) ? h : lim(h + v)));
       updateHeightmap();
       document.getElementById("rescaler").value = 0;
     }
@@ -464,74 +642,114 @@ function editHeightmap() {
       const range = rescaleLower.value + "-" + rescaleHigher.value;
       const operator = conditionSign.value;
       const operand = rescaleModifier.valueAsNumber;
-      if (Number.isNaN(operand)) {tip("Operand should be a number", false, "error"); return;}
-      if ((operator === "add" || operator === "subtract") && !Number.isInteger(operand)) {tip("Operand should be an integer", false, "error"); return;}
+      if (Number.isNaN(operand)) {
+        tip("Operand should be a number", false, "error");
+        return;
+      }
+      if ((operator === "add" || operator === "subtract") && !Number.isInteger(operand)) {
+        tip("Operand should be an integer", false, "error");
+        return;
+      }
 
-      if (operator === "multiply") HeightmapGenerator.modify(range, 0, operand, 0); else
-      if (operator === "divide") HeightmapGenerator.modify(range, 0, 1 / operand, 0); else
-      if (operator === "add") HeightmapGenerator.modify(range, operand, 1, 0); else
-      if (operator === "subtract") HeightmapGenerator.modify(range, -1 * operand, 1, 0); else
-      if (operator === "exponent") HeightmapGenerator.modify(range, 0, 1, operand);
-      
+      if (operator === "multiply") HeightmapGenerator.modify(range, 0, operand, 0);
+      else if (operator === "divide") HeightmapGenerator.modify(range, 0, 1 / operand, 0);
+      else if (operator === "add") HeightmapGenerator.modify(range, operand, 1, 0);
+      else if (operator === "subtract") HeightmapGenerator.modify(range, -1 * operand, 1, 0);
+      else if (operator === "exponent") HeightmapGenerator.modify(range, 0, 1, operand);
+
       updateHeightmap();
     }
 
     function smoothAllHeights() {
-      HeightmapGenerator.smooth(4);
+      HeightmapGenerator.smooth(4, 1.5);
       updateHeightmap();
     }
 
     function disruptAllHeights() {
-      grid.cells.h = grid.cells.h.map(h => h < 17 ? h : lim(h + 2 - Math.random()*4));
+      grid.cells.h = grid.cells.h.map(h => (h < 15 ? h : lim(h + 2.5 - Math.random() * 4)));
       updateHeightmap();
     }
-  
+
     function startFromScratch() {
-      if (changeOnlyLand.checked) {tip("Not allowed when 'Change only land cells' mode is set", false, "error"); return;}
+      if (changeOnlyLand.checked) {
+        tip("Not allowed when 'Change only land cells' mode is set", false, "error");
+        return;
+      }
       const someHeights = grid.cells.h.some(h => h);
-      if (!someHeights) {tip("Heightmap is already cleared, please do not click twice if not required", false, "error"); return;}
+      if (!someHeights) {
+        tip("Heightmap is already cleared, please do not click twice if not required", false, "error");
+        return;
+      }
       grid.cells.h = new Uint8Array(grid.cells.i.length);
-      terrs.selectAll("*").remove();
+      viewbox.select("#heights").selectAll("*").remove();
       updateHistory();
     }
-    
   }
 
   function openTemplateEditor() {
     if ($("#templateEditor").is(":visible")) return;
+    const body = document.getElementById("templateBody");
+
     $("#templateEditor").dialog({
-      title: "Template Editor", minHeight: "auto", width: "fit-content", resizable: false,
+      title: "Template Editor",
+      minHeight: "auto",
+      width: "fit-content",
+      resizable: false,
       position: {my: "right top", at: "right-10 top+10", of: "svg"}
     });
 
     if (modules.openTemplateEditor) return;
     modules.openTemplateEditor = true;
-    
-    $("#templateBody").sortable({items: "div:not(.elType)"});
+
+    $("#templateBody").sortable({items: "> div", handle: ".icon-resize-vertical", containment: "#templateBody", axis: "y"});
 
     // add listeners
+    body.addEventListener("click", function (ev) {
+      const el = ev.target;
+      if (el.classList.contains("icon-check")) {
+        el.classList.remove("icon-check");
+        el.classList.add("icon-check-empty");
+        el.parentElement.style.opacity = 0.5;
+        body.dataset.changed = 1;
+        return;
+      }
+      if (el.classList.contains("icon-check-empty")) {
+        el.classList.add("icon-check");
+        el.classList.remove("icon-check-empty");
+        el.parentElement.style.opacity = 1;
+        return;
+      }
+      if (el.classList.contains("icon-trash-empty")) {
+        el.parentElement.remove();
+        return;
+      }
+    });
+
     document.getElementById("templateTools").addEventListener("click", e => addStepOnClick(e));
-    document.getElementById("templateSelect").addEventListener("change", e => selectTemplate(e)); 
-    document.getElementById("templateRun").addEventListener("click", executeTemplate); 
-    document.getElementById("templateSave").addEventListener("click", downloadTemplate); 
-    document.getElementById("templateLoad").addEventListener("click", e => templateToLoad.click()); 
-    document.getElementById("templateToLoad").addEventListener("change", uploadTemplate); 
+    document.getElementById("templateSelect").addEventListener("change", e => selectTemplate(e));
+    document.getElementById("templateRun").addEventListener("click", executeTemplate);
+    document.getElementById("templateSave").addEventListener("click", downloadTemplate);
+    document.getElementById("templateLoad").addEventListener("click", () => templateToLoad.click());
+    document.getElementById("templateToLoad").addEventListener("change", function () {
+      uploadFile(this, uploadTemplate);
+    });
 
     function addStepOnClick(e) {
       if (e.target.tagName !== "BUTTON") return;
       const type = e.target.id.replace("template", "");
-      const body = document.getElementById("templateBody");
-      body.setAttribute("data-changed", 1);
+      document.getElementById("templateBody").dataset.changed = 1;
       addStep(type);
     }
 
     function addStep(type, count, dist, arg4, arg5) {
-      const body = document.getElementById("templateBody"); 
+      const body = document.getElementById("templateBody");
       body.insertAdjacentHTML("beforeend", getStepHTML(type, count, dist, arg4, arg5));
       const elDist = body.querySelector("div:last-child").querySelector(".templateDist");
       if (elDist) elDist.addEventListener("change", setRange);
       if (dist && elDist && elDist.tagName === "SELECT") {
-        for (const o of elDist.options) {if (o.value === dist) elDist.value = dist;}
+        for (const o of elDist.options) {
+          if (o.value === dist) elDist.value = dist;
+        }
         if (elDist.value !== dist) {
           const opt = document.createElement("option");
           opt.value = opt.innerHTML = dist;
@@ -542,43 +760,58 @@ function editHeightmap() {
     }
 
     function getStepHTML(type, count, arg3, arg4, arg5) {
-      const Trash = `<i class="icon-trash-empty pointer" data-tip="Remove the step" onclick="this.parentElement.remove()"></i>`;
-      const TempY = `<span>y:<input class="templateY" data-tip="Placement range percentage along Y axis (minY-maxY)" value=${arg5||"20-80"}></span>`;
-      const TempX = `<span>x:<input class="templateX" data-tip="Placement range percentage along X axis (minX-maxX)" value=${arg4||"15-85"}></span>`;
-      const Height = `<span>h:<input class="templateHeight" data-tip="Blob maximum height, use hyphen to get a random number in range" value=${arg3||"40-50"}></span>`;
-      const Count = `<span>n:<input class="templateCount" data-tip="Blobs to add, use hyphen to get a random number in range" value=${count||"1-2"}></span>`;
-      const Type = `<div class="elType">${type}</div>`;
-      const blob = `<div data-type="${type}">${Type}${Trash}${TempY}${TempX}${Height}${Count}</div>`;
+      const Trash = `<i class="icon-trash-empty pointer" data-tip="Click to remove the step"></i>`;
+      const Hide = `<div class="icon-check" data-tip="Click to skip the step"></div>`;
+      const Reorder = `<i class="icon-resize-vertical" data-tip="Drag to reorder"></i>`;
+      const common = `<div data-type="${type}">${Hide}<div style="width:4em">${type}</div>${Trash}${Reorder}`;
+
+      const TempY = `<span>y:<input class="templateY" data-tip="Placement range percentage along Y axis (minY-maxY)" value=${arg5 || "20-80"}></span>`;
+      const TempX = `<span>x:<input class="templateX" data-tip="Placement range percentage along X axis (minX-maxX)" value=${arg4 || "15-85"}></span>`;
+      const Height = `<span>h:<input class="templateHeight" data-tip="Blob maximum height, use hyphen to get a random number in range" value=${arg3 || "40-50"}></span>`;
+      const Count = `<span>n:<input class="templateCount" data-tip="Blobs to add, use hyphen to get a random number in range" value=${count || "1-2"}></span>`;
+      const blob = `${common}${TempY}${TempX}${Height}${Count}</div>`;
 
       if (type === "Hill" || type === "Pit" || type === "Range" || type === "Trough") return blob;
-      if (type === "Strait") return `<div data-type="${type}">${Type}${Trash}<span>d:<select class="templateDist" data-tip="Strait direction"><option value="vertical" selected>vertical</option><option value="horizontal">horizontal</option></select></span><span>w:<input class="templateCount" data-tip="Strait width, use hyphen to get a random number in range" value=${count||"2-7"}></span></div>`;
-      if (type === "Add") return `<div data-type="${type}">${Type}${Trash}<span>to:<select class="templateDist" data-tip="Change only land or all cells"><option value="all" selected>all cells</option><option value="land">land only</option><option value="interval">interval</option></select></span><span>v:<input class="templateCount" data-tip="Add value to height of all cells (negative values are allowed)" type="number" value=${count||-10} min=-100 max=100 step=1></span></div>`;
-      if (type === "Multiply") return `<div data-type="${type}">${Type}${Trash}<span>to:<select class="templateDist" data-tip="Change only land or all cells"><option value="all" selected>all cells</option><option value="land">land only</option><option value="interval">interval</option></select></span><span>v:<input class="templateCount" data-tip="Multiply all cells Height by the value" type="number" value=${count||1.1} min=0 max=10 step=.1></span></div>`;
-      if (type === "Smooth") return `<div data-type="${type}">${Type}${Trash}<span>f:<input class="templateCount" data-tip="Set smooth fraction. 1 - full smooth, 2 - half-smooth, etc." type="number" min=1 max=10 value=${count||2}></span></div>`;
+      if (type === "Strait") return `${common}<span>d:<select class="templateDist" data-tip="Strait direction"><option value="vertical" selected>vertical</option><option value="horizontal">horizontal</option></select></span><span>w:<input class="templateCount" data-tip="Strait width, use hyphen to get a random number in range" value=${count || "2-7"}></span></div>`;
+      if (type === "Add") return `${common}<span>to:<select class="templateDist" data-tip="Change only land or all cells"><option value="all" selected>all cells</option><option value="land">land only</option><option value="interval">interval</option></select></span><span>v:<input class="templateCount" data-tip="Add value to height of all cells (negative values are allowed)" type="number" value=${count || -10} min=-100 max=100 step=1></span></div>`;
+      if (type === "Multiply") return `${common}<span>to:<select class="templateDist" data-tip="Change only land or all cells"><option value="all" selected>all cells</option><option value="land">land only</option><option value="interval">interval</option></select></span><span>v:<input class="templateCount" data-tip="Multiply all cells Height by the value" type="number" value=${count || 1.1} min=0 max=10 step=.1></span></div>`;
+      if (type === "Smooth") return `${common}<span>f:<input class="templateCount" data-tip="Set smooth fraction. 1 - full smooth, 2 - half-smooth, etc." type="number" min=1 max=10 value=${count || 2}></span></div>`;
     }
 
     function setRange(event) {
       if (event.target.value !== "interval") return;
-      const interval = prompt("Set a height interval. E.g. '17-20'. Avoid space, use hyphen as a separator");
-      if (!interval || interval === "") return;
-      const opt = document.createElement("option");
-      opt.value = opt.innerHTML = interval;
-      event.target.add(opt);
-      event.target.value = interval;
+
+      prompt("Set a height interval. Avoid space, use hyphen as a separator", {default: "17-20"}, v => {
+        const opt = document.createElement("option");
+        opt.value = opt.innerHTML = v;
+        event.target.add(opt);
+        event.target.value = v;
+      });
     }
 
     function selectTemplate(e) {
       const body = document.getElementById("templateBody");
       const steps = body.querySelectorAll("div").length;
       const changed = +body.getAttribute("data-changed");
-      const template = e.target.value;      
-      if (!steps || !changed) {changeTemplate(template); return;}
+      const template = e.target.value;
+      if (!steps || !changed) {
+        changeTemplate(template);
+        return;
+      }
 
       alertMessage.innerHTML = "Are you sure you want to select a different template? All changes will be lost.";
-      $("#alert").dialog({resizable: false, title: "Change Template",
+      $("#alert").dialog({
+        resizable: false,
+        title: "Change Template",
         buttons: {
-          Change: function() {changeTemplate(template); $(this).dialog("close");},
-          Cancel: function() {$(this).dialog("close");}}
+          Change: function () {
+            changeTemplate(template);
+            $(this).dialog("close");
+          },
+          Cancel: function () {
+            $(this).dialog("close");
+          }
+        }
       });
     }
 
@@ -587,119 +820,16 @@ function editHeightmap() {
       body.setAttribute("data-changed", 0);
       body.innerHTML = "";
 
-      if (template === "templateVolcano") {
-        addStep("Hill", "1", "90-100", "44-56", "40-60");
-        addStep("Multiply", .8, "50-100");
-        addStep("Range", "1.5", "30-55", "45-55", "40-60");
-        addStep("Smooth", 2);
-        addStep("Hill", "1.5", "25-35", "25-30", "20-75");
-        addStep("Hill", "1", "25-35", "75-80", "25-75");
-        addStep("Hill", "0.5", "20-25", "10-15", "20-25");
-      }
+      const templateString = HeightmapTemplates[template];
+      if (!templateString) return;
 
-      else if (template === "templateHighIsland") {
-        addStep("Hill", "1", "90-100", "65-75", "47-53");
-        addStep("Add", 5, "all");
-        addStep("Hill", "6", "20-23", "25-55", "45-55");
-        addStep("Range", "1", "40-50", "45-55", "45-55");
-        addStep("Smooth", 2);
-        addStep("Trough", "2-3", "20-30", "20-30", "20-30");
-        addStep("Trough", "2-3", "20-30", "60-80", "70-80");
-        addStep("Hill", "1", "10-15", "60-60", "50-50");
-        addStep("Hill", "1.5", "13-16", "15-20", "20-75");
-        addStep("Multiply", .8, "20-100");
-        addStep("Range", "1.5", "30-40", "15-85", "30-40");
-        addStep("Range", "1.5", "30-40", "15-85", "60-70");
-        addStep("Pit", "2-3", "10-15", "15-85", "20-80");
-      }
+      const steps = templateString.split("\n");
+      if (!steps.length) return tip(`Heightmap template: no steps defined`, false, "error");
 
-      else if (template === "templateLowIsland") {
-        addStep("Hill", "1", "90-99", "60-80", "45-55");
-        addStep("Hill", "4-5", "25-35", "20-65", "40-60");
-        addStep("Range", "1", "40-50", "45-55", "45-55");
-        addStep("Smooth", 3);
-        addStep("Trough", "1.5", "20-30", "15-85", "20-30");
-        addStep("Trough", "1.5", "20-30", "15-85", "70-80");
-        addStep("Hill", "1.5", "10-15", "5-15", "20-80");
-        addStep("Hill", "1", "10-15", "85-95", "70-80");
-        addStep("Pit", "3-5", "10-15", "15-85", "20-80");
-        addStep("Multiply", .4, "20-100");
+      for (const step of steps) {
+        const elements = step.trim().split(" ");
+        addStep(...elements);
       }
-
-      else if (template === "templateContinents") {
-        addStep("Hill", "1", "80-85", "75-80", "40-60");
-        addStep("Hill", "1", "80-85", "20-25", "40-60");
-        addStep("Multiply", .22, "20-100");
-        addStep("Hill", "5-6", "15-20", "25-75", "20-82");
-        addStep("Range", ".8", "30-60", "5-15", "20-45");
-        addStep("Range", ".8", "30-60", "5-15", "55-80");
-        addStep("Range", "0-3", "30-60", "80-90", "20-80");
-        addStep("Trough", "3-4", "15-20", "15-85", "20-80");
-        addStep("Strait", "2", "vertical");
-        addStep("Smooth", 2);
-        addStep("Trough", "1-2", "5-10", "45-55", "45-55");
-        addStep("Pit", "3-4", "10-15", "15-85", "20-80");
-        addStep("Hill", "1", "5-10", "40-60", "40-60");
-      }
-
-      else if (template === "templateArchipelago") {
-        addStep("Add", 11, "all");
-        addStep("Range", "2-3", "40-60", "20-80", "20-80");
-        addStep("Hill", "5", "15-20", "10-90", "30-70");
-        addStep("Hill", "2", "10-15", "10-30", "20-80");
-        addStep("Hill", "2", "10-15", "60-90", "20-80");
-        addStep("Smooth", 3);
-        addStep("Trough", "10", "20-30", "5-95", "5-95");
-        addStep("Strait", "2", "vertical");
-        addStep("Strait", "2", "horizontal");
-      }
-
-      else if (template === "templateAtoll") {
-        addStep("Hill", "1", "75-80", "50-60", "45-55");
-        addStep("Hill", "1.5", "30-50", "25-75", "30-70");
-        addStep("Hill", ".5", "30-50", "25-35", "30-70");
-        addStep("Smooth", 1);
-        addStep("Multiply", .2, "25-100");
-        addStep("Hill", ".5", "10-20", "50-55", "48-52"); 
-      }
-
-      else if (template === "templateMediterranean") {
-        addStep("Range", "3-4", "30-50", "0-100", "0-10");
-        addStep("Range", "3-4", "30-50", "0-100", "90-100");
-        addStep("Hill", "5-6", "30-70", "0-100", "0-5");
-        addStep("Hill", "5-6", "30-70", "0-100", "95-100");
-        addStep("Smooth", 1);
-        addStep("Hill", "2-3", "30-70", "0-5", "20-80");
-        addStep("Hill", "2-3", "30-70", "95-100", "20-80");
-        addStep("Multiply", .8, "land");
-        addStep("Trough", "3-5", "40-50", "0-100", "0-10");
-        addStep("Trough", "3-5", "40-50", "0-100", "90-100");
-      }
-
-      else if (template === "templatePeninsula") {
-        addStep("Range", "2-3", "20-35", "40-50", "0-15");
-        addStep("Add", 5, "all");
-        addStep("Hill", "1", "90-100", "10-90", "0-5");
-        addStep("Add", 13, "all");
-        addStep("Hill", "3-4", "3-5", "5-95", "80-100");
-        addStep("Hill", "1-2", "3-5", "5-95", "40-60");
-        addStep("Trough", "5-6", "10-25", "5-95", "5-95");
-        addStep("Smooth", 3);
-      }
-
-      else if (template === "templatePangea") {
-        addStep("Hill", "1-2", "25-40", "15-50", "0-10");
-        addStep("Hill", "1-2", "5-40", "50-85", "0-10");
-        addStep("Hill", "1-2", "25-40", "50-85", "90-100");
-        addStep("Hill", "1-2", "5-40", "15-50", "90-100");
-        addStep("Hill", "8-12", "20-40", "20-80", "48-52");
-        addStep("Smooth", 2);
-        addStep("Multiply", .7, "land");
-        addStep("Trough", "3-4", "25-35", "5-95", "10-20");
-        addStep("Trough", "3-4", "25-35", "5-95", "80-90");
-        addStep("Range", "5-6", "30-40", "10-90", "35-65");
-      }
-      
     }
 
     function executeTemplate() {
@@ -710,7 +840,9 @@ function editHeightmap() {
       grid.cells.h = new Uint8Array(grid.cells.i.length); // clean all heights
 
       for (const s of steps) {
-        const type = s.getAttribute("data-type");
+        if (s.style.opacity == 0.5) continue;
+        const type = s.dataset.type;
+
         const elCount = s.querySelector(".templateCount") || "";
         const elHeight = s.querySelector(".templateHeight") || "";
 
@@ -722,30 +854,33 @@ function editHeightmap() {
         const templateY = s.querySelector(".templateY");
         const y = templateY ? templateY.value : null;
 
-        if (type === "Hill") HeightmapGenerator.addHill(elCount.value, elHeight.value, x, y); else
-        if (type === "Pit") HeightmapGenerator.addPit(elCount.value, elHeight.value, x, y); else
-        if (type === "Range") HeightmapGenerator.addRange(elCount.value, elHeight.value, x, y); else
-        if (type === "Trough") HeightmapGenerator.addTrough(elCount.value, elHeight.value, x, y); else
-        if (type === "Strait") HeightmapGenerator.addStrait(elCount.value, dist); else
-        if (type === "Add") HeightmapGenerator.modify(dist, +elCount.value, 1); else
-        if (type === "Multiply") HeightmapGenerator.modify(dist, 0, +elCount.value); else
-        if (type === "Smooth") HeightmapGenerator.smooth(+elCount.value);
+        if (type === "Hill") HeightmapGenerator.addHill(elCount.value, elHeight.value, x, y);
+        else if (type === "Pit") HeightmapGenerator.addPit(elCount.value, elHeight.value, x, y);
+        else if (type === "Range") HeightmapGenerator.addRange(elCount.value, elHeight.value, x, y);
+        else if (type === "Trough") HeightmapGenerator.addTrough(elCount.value, elHeight.value, x, y);
+        else if (type === "Strait") HeightmapGenerator.addStrait(elCount.value, dist);
+        else if (type === "Add") HeightmapGenerator.modify(dist, +elCount.value, 1);
+        else if (type === "Multiply") HeightmapGenerator.modify(dist, 0, +elCount.value);
+        else if (type === "Smooth") HeightmapGenerator.smooth(+elCount.value);
 
         updateHistory("noStat"); // update history every step
       }
 
       updateStatistics();
       mockHeightmap();
+      if (document.getElementById("preview")) drawHeightmapPreview(); // update heightmap preview if opened
+      if (document.getElementById("canvas3d")) ThreeD.redraw(); // update 3d heightmap preview if opened
     }
 
     function downloadTemplate() {
       const body = document.getElementById("templateBody");
-      body.setAttribute("data-changed", 0);
+      body.dataset.changed = 0;
       const steps = body.querySelectorAll("#templateBody > div");
       if (!steps.length) return;
 
-      let stepsData = "";
+      let data = "";
       for (const s of steps) {
+        if (s.style.opacity == 0.5) continue;
         const type = s.getAttribute("data-type");
         const elCount = s.querySelector(".templateCount");
         const count = elCount ? elCount.value : "0";
@@ -756,48 +891,44 @@ function editHeightmap() {
         const x = templateX ? templateX.value : "0";
         const templateY = s.querySelector(".templateY");
         const y = templateY ? templateY.value : "0";
-        stepsData += `${type} ${count} ${arg3} ${x} ${y}\r\n`;
+        data += `${type} ${count} ${arg3} ${x} ${y}\r\n`;
       }
 
-      const dataBlob = new Blob([stepsData], {type: "text/plain"});
-      const url = window.URL.createObjectURL(dataBlob);
-      const link = document.createElement("a");
-      link.download = "template_" + Date.now() + ".txt";
-      link.href = url;
-      link.click();
+      const name = "template_" + Date.now() + ".txt";
+      downloadFile(data, name);
     }
 
-    function uploadTemplate(c) {
-      const body = document.getElementById("templateBody");
-      const el = document.getElementById("templateToLoad");
-      const fileToLoad = el.files[0];
-      el.value = "";
-      const fileReader = new FileReader();
-
-      fileReader.onload = function(e) {
-        const dataLoaded = e.target.result;
-        const steps = dataLoaded.split("\r\n");
-        if (!steps.length) {tip("Cannot parse the template, please check the file", false, "error"); return;}
-        body.innerHTML = "";
-        for (const s of steps) {
-          const step = s.split(" ");
-          if (step.length !== 5) {console.error("Cannot parse step, wrong arguments count", s); continue;}
-          addStep(step[0], step[1], step[2], step[3], step[4]);
-        }
+    function uploadTemplate(dataLoaded) {
+      const steps = dataLoaded.split("\r\n");
+      if (!steps.length) {
+        tip("Cannot parse the template, please check the file", false, "error");
+        return;
       }
-      
-      fileReader.readAsText(fileToLoad, "UTF-8");
+      templateBody.innerHTML = "";
+      for (const s of steps) {
+        const step = s.split(" ");
+        if (step.length !== 5) {
+          ERROR && console.error("Cannot parse step, wrong arguments count", s);
+          continue;
+        }
+        addStep(step[0], step[1], step[2], step[3], step[4]);
+      }
     }
   }
 
   function openImageConverter() {
     if ($("#imageConverter").is(":visible")) return;
+    imageToLoad.click();
     closeDialogs("#imageConverter");
 
     $("#imageConverter").dialog({
-      title: "Image Converter", minHeight: "auto", width: "22.5em", resizable: false,
-      position: {my: "right top", at: "right-10 top+10", of: "svg"}
-    }).on('dialogclose', closeImageConverter);
+      title: "Image Converter",
+      maxHeight: svgHeight * 0.8,
+      minHeight: "auto",
+      width: "20em",
+      position: {my: "right top", at: "right-10 top+10", of: "svg"},
+      beforeClose: closeImageConverter
+    });
 
     // create canvas for image
     const canvas = document.createElement("canvas");
@@ -805,37 +936,54 @@ function editHeightmap() {
     canvas.width = graphWidth;
     canvas.height = graphHeight;
     document.body.insertBefore(canvas, optionsContainer);
+
     setOverlayOpacity(0);
-    
-    document.getElementById("convertImageLoad").classList.add("glow"); // add glow effect
-    tip('Image Converter is opened. Upload the image and assign the colors to desired heights', true); // main tip
+    clearMainTip();
+    tip("Image Converter is opened. Upload image and assign height value for each color", false, "warn"); // main tip
+
+    // remove all heights
+    grid.cells.h = new Uint8Array(grid.cells.i.length);
+    viewbox.select("#heights").selectAll("*").remove();
+    updateHistory();
 
     if (modules.openImageConverter) return;
     modules.openImageConverter = true;
 
     // add color pallete
-    void function createColorPallete() {
-      const container = d3.select("#colorScheme");
-      container.selectAll("div").data(d3.range(101)).enter().append("div").attr("data-color", i => i)
-        .style("background-color", i => color(1-i/100))
-        .style("width", i => i < 20 || i > 70 ? "3px" : "1px")
-        .on("touchmove mousemove", showPalleteHeight).on("click", assignHeight);
-    }()
+    void (function createColorPallete() {
+      d3.select("#imageConverterPalette")
+        .selectAll("div")
+        .data(d3.range(101))
+        .enter()
+        .append("div")
+        .attr("data-color", i => i)
+        .style("background-color", i => color(1 - (i < 20 ? i - 5 : i) / 100))
+        .style("width", i => (i < 40 || i > 68 ? ".2em" : ".1em"))
+        .on("touchmove mousemove", showPalleteHeight)
+        .on("click", assignHeight);
+    })();
 
     // add listeners
     document.getElementById("convertImageLoad").addEventListener("click", () => imageToLoad.click());
     document.getElementById("imageToLoad").addEventListener("change", loadImage);
     document.getElementById("convertAutoLum").addEventListener("click", () => autoAssing("lum"));
     document.getElementById("convertAutoHue").addEventListener("click", () => autoAssing("hue"));
-    document.getElementById("convertColorsPlus").addEventListener("click", () => changeConvertColorsNumber(1));
-    document.getElementById("convertColorsMinus").addEventListener("click", () => changeConvertColorsNumber(-1));
-    document.getElementById("convertComplete").addEventListener("click", () => $("#imageConverter").dialog("close"));
-    document.getElementById("convertOverlay").addEventListener("input", function() {setOverlayOpacity(this.value)});
-    document.getElementById("convertOverlayNumber").addEventListener("input", function() {setOverlayOpacity(this.value)});
+    document.getElementById("convertAutoFMG").addEventListener("click", () => autoAssing("scheme"));
+    document.getElementById("convertColorsButton").addEventListener("click", setConvertColorsNumber);
+    document.getElementById("convertComplete").addEventListener("click", applyConversion);
+    document.getElementById("convertCancel").addEventListener("click", cancelConversion);
+    document.getElementById("convertOverlay").addEventListener("input", function () {
+      setOverlayOpacity(this.value);
+    });
+    document.getElementById("convertOverlayNumber").addEventListener("input", function () {
+      setOverlayOpacity(this.value);
+    });
 
     function showPalleteHeight() {
-      colorsSelectValue.innerHTML = this.getAttribute("data-color");
-      const former = colorScheme.querySelector(".hoveredColor")
+      const height = +this.getAttribute("data-color");
+      colorsSelectValue.innerHTML = height;
+      colorsSelectFriendly.innerHTML = getHeight(height);
+      const former = imageConverterPalette.querySelector(".hoveredColor");
       if (former) former.className = "";
       this.className = "hoveredColor";
     }
@@ -844,53 +992,64 @@ function editHeightmap() {
       const file = this.files[0];
       this.value = ""; // reset input value to get triggered if the file is re-uploaded
       const reader = new FileReader();
-      const img = new Image;
 
-      img.onload = function() {
+      const img = new Image();
+      img.id = "imageToConvert";
+      img.style.display = "none";
+      document.body.appendChild(img);
+
+      img.onload = function () {
         const ctx = document.getElementById("canvas").getContext("2d");
         ctx.drawImage(img, 0, 0, graphWidth, graphHeight);
         heightsFromImage(+convertColors.value);
         resetZoom();
-        convertImageLoad.classList.remove("glow");
       };
 
-      reader.onloadend = function() {img.src = reader.result;};
+      reader.onloadend = () => (img.src = reader.result);
       reader.readAsDataURL(file);
     }
 
     function heightsFromImage(count) {
-      const ctx = document.getElementById("canvas").getContext("2d");
-      const imageData = ctx.getImageData(0, 0, graphWidth, graphHeight);
-      const data = imageData.data;
+      const sourceImage = document.getElementById("canvas");
+      const sampleCanvas = document.createElement("canvas");
+      sampleCanvas.width = grid.cellsX;
+      sampleCanvas.height = grid.cellsY;
+      sampleCanvas.getContext("2d").drawImage(sourceImage, 0, 0, grid.cellsX, grid.cellsY);
 
-      terrs.selectAll("*").remove();
+      const q = new RgbQuant({colors: count});
+      q.sample(sampleCanvas);
+      const data = q.reduce(sampleCanvas);
+      const pallete = q.palette(true);
+
+      viewbox.select("#heights").selectAll("*").remove();
       d3.select("#imageConverter").selectAll("div.color-div").remove();
       colorsSelect.style.display = "block";
       colorsUnassigned.style.display = "block";
       colorsAssigned.style.display = "none";
+      sampleCanvas.remove(); // no need to keep
 
-      const gridColors = grid.points.map(function(p) {
-        const x = Math.floor(p[0]), y = Math.floor(p[1]);
-        const i = (x + y * graphWidth) * 4;
-        const r = data[i], g = data[i+1], b = data[i+2];
-        return [r, g, b];
-      });
+      viewbox
+        .select("#heights")
+        .selectAll("polygon")
+        .data(grid.cells.i)
+        .join("polygon")
+        .attr("points", d => getGridPolygon(d))
+        .attr("id", d => "cell" + d)
+        .attr("fill", d => `rgb(${data[d * 4]}, ${data[d * 4 + 1]}, ${data[d * 4 + 2]})`)
+        .on("click", mapClicked);
 
-      const cmap = MMCQ.quantize(gridColors, count);
-      const usedColors = new Set();
+      const colors = pallete.map(p => `rgb(${p[0]}, ${p[1]}, ${p[2]})`);
+      d3.select("#colorsUnassigned")
+        .selectAll("div")
+        .data(colors)
+        .enter()
+        .append("div")
+        .attr("data-color", i => i)
+        .style("background-color", i => i)
+        .attr("class", "color-div")
+        .on("click", colorClicked);
 
-      terrs.selectAll("polygon").data(grid.cells.i).join("polygon").attr("points", d => getGridPolygon(d))
-        .attr("id", d => "cell"+d).attr("fill", d => {
-          const clr = `rgb(${cmap.nearest(gridColors[d])})`;
-          usedColors.add(clr);
-          return clr;
-        }).on("click", mapClicked);
-
-      const unassigned = [...usedColors].sort((a, b) => d3.lab(a).b - d3.lab(b).b);
-      const unassignedContainer = d3.select("#colorsUnassigned");
-      unassignedContainer.selectAll("div").data(unassigned).enter().append("div")
-        .attr("data-color", i => i).style("background-color", i => i)
-        .attr("class", "color-div").on("click", colorClicked);
+      document.getElementById("colorsUnassignedNumber").innerHTML = colors.length;
     }
 
     function mapClicked() {
@@ -900,77 +1059,129 @@ function editHeightmap() {
     }
 
     function colorClicked() {
-      terrs.selectAll(".selectedCell").attr("class", null);
+      viewbox.select("#heights").selectAll(".selectedCell").attr("class", null);
       const unselect = this.classList.contains("selectedColor");
 
       const selectedColor = imageConverter.querySelector("div.selectedColor");
       if (selectedColor) selectedColor.classList.remove("selectedColor");
-      const hoveredColor = colorScheme.querySelector("div.hoveredColor");
+      const hoveredColor = imageConverterPalette.querySelector("div.hoveredColor");
       if (hoveredColor) hoveredColor.classList.remove("hoveredColor");
-      colorsSelectValue.innerHTML = "";
+      colorsSelectValue.innerHTML = colorsSelectFriendly.innerHTML = 0;
 
       if (unselect) return;
       this.classList.add("selectedColor");
 
-      if (this.getAttribute("data-height")) {
-        const height = this.getAttribute("data-height");
-        colorScheme.querySelector(`div[data-color="${height}"]`).classList.add("hoveredColor");
+      if (this.dataset.height) {
+        const height = +this.dataset.height;
+        imageConverterPalette.querySelector(`div[data-color="${height}"]`).classList.add("hoveredColor");
         colorsSelectValue.innerHTML = height;
+        colorsSelectFriendly.innerHTML = getHeight(height);
       }
 
       const color = this.getAttribute("data-color");
-      terrs.selectAll("polygon.selectedCell").classed("selectedCell", 0);
-      terrs.selectAll("polygon[fill='" + color + "']").classed("selectedCell", 1);
+      viewbox.select("#heights").selectAll("polygon.selectedCell").classed("selectedCell", 0);
+      viewbox
+        .select("#heights")
+        .selectAll("polygon[fill='" + color + "']")
+        .classed("selectedCell", 1);
     }
 
     function assignHeight() {
-      const height = +this.getAttribute("data-color");
-      const rgb = color(1 - height/100);
-
-      const selectedColor = imageConverter.querySelector("div.selectedColor");      
+      const height = +this.dataset.color;
+      const rgb = color(1 - (height < 20 ? height - 5 : height) / 100);
+      const selectedColor = imageConverter.querySelector("div.selectedColor");
       selectedColor.style.backgroundColor = rgb;
       selectedColor.setAttribute("data-color", rgb);
       selectedColor.setAttribute("data-height", height);
 
-      terrs.selectAll(".selectedCell").each(function() {
-        this.setAttribute("fill", rgb); 
-        this.setAttribute("data-height", height);
-      });
+      viewbox
+        .select("#heights")
+        .selectAll(".selectedCell")
+        .each(function () {
+          this.setAttribute("fill", rgb);
+          this.setAttribute("data-height", height);
+        });
 
       if (selectedColor.parentNode.id === "colorsUnassigned") {
         colorsAssigned.appendChild(selectedColor);
         colorsAssigned.style.display = "block";
-      }
 
+        document.getElementById("colorsUnassignedNumber").innerHTML = colorsUnassigned.childElementCount - 2;
+        document.getElementById("colorsAssignedNumber").innerHTML = colorsAssigned.childElementCount - 2;
+      }
     }
 
     // auto assign color based on luminosity or hue
     function autoAssing(type) {
-      const unassigned = colorsUnassigned.querySelectorAll("div");
-      if (!unassigned.length) {tip("No unassigned colors. Please load an image and click the button again", false, "error"); return;}
+      let unassigned = colorsUnassigned.querySelectorAll("div");
+      if (!unassigned.length) {
+        heightsFromImage(+convertColors.value);
+        unassigned = colorsUnassigned.querySelectorAll("div");
+        if (!unassigned.length) {
+          tip("No unassigned colors. Please load an image and click the button again", false, "error");
+          return;
+        }
+      }
 
-      unassigned.forEach(function(el) {
-        const colorFrom = el.getAttribute("data-color");
-        const lab = d3.lab(colorFrom);
-        const normalized = type === "hue" ? rn(normalize(lab.b + lab.a / 2, -50, 200), 2) : rn(normalize(lab.l, 0, 100), 2);
-        const colorTo = color(1 - normalized);
-        const heightTo = normalized * 100;
-        
-        terrs.selectAll("polygon[fill='" + colorFrom + "']").attr("fill", colorTo).attr("data-height", heightTo);
-        el.style.backgroundColor = colorTo;
-        el.setAttribute("data-color", colorTo);
-        el.setAttribute("data-height", heightTo);
-        colorsAssigned.appendChild(el);        
+      const getHeightByHue = function (color) {
+        let hue = d3.hsl(color).h;
+        if (hue > 300) hue -= 360;
+        if (hue > 170) return (Math.abs(hue - 250) / 3) | 0; // water
+        return (Math.abs(hue - 250 + 20) / 3) | 0; // land
+      };
+
+      const getHeightByLum = function (color) {
+        let lum = d3.lab(color).l;
+        if (lum < 13) return ((lum / 13) * 20) | 0; // water
+        return lum | 0; // land
+      };
+
+      const scheme = d3.range(101).map(i => getColor(i, color()));
+      const hues = scheme.map(rgb => d3.hsl(rgb).h | 0);
+      const getHeightByScheme = function (color) {
+        let height = scheme.indexOf(color);
+        if (height !== -1) return height; // exact match
+        const hue = d3.hsl(color).h;
+        const closest = hues.reduce((prev, curr) => (Math.abs(curr - hue) < Math.abs(prev - hue) ? curr : prev));
+        return hues.indexOf(closest);
+      };
+
+      const assinged = []; // store assigned heights
+      unassigned.forEach(el => {
+        const clr = el.dataset.color;
+        const height = type === "hue" ? getHeightByHue(clr) : type === "lum" ? getHeightByLum(clr) : getHeightByScheme(clr);
+        const colorTo = color(1 - (height < 20 ? (height - 5) / 100 : height / 100));
+        viewbox
+          .select("#heights")
+          .selectAll("polygon[fill='" + clr + "']")
+          .attr("fill", colorTo)
+          .attr("data-height", height);
+
+        if (assinged[height]) {
+          el.remove();
+          return;
+        } // if color is already added, remove it
+        el.style.backgroundColor = el.dataset.color = colorTo;
+        el.dataset.height = height;
+        colorsAssigned.appendChild(el);
+        assinged[height] = true;
       });
-      
+
+      // sort assigned colors by height
+      Array.from(colorsAssigned.children)
+        .sort((a, b) => +a.dataset.height - +b.dataset.height)
+        .forEach(line => colorsAssigned.appendChild(line));
+
       colorsAssigned.style.display = "block";
-      colorsUnassigned.style.display = "none";   
+      colorsUnassigned.style.display = "none";
+      document.getElementById("colorsAssignedNumber").innerHTML = colorsAssigned.childElementCount - 2;
     }
-    
-    function changeConvertColorsNumber(change) {
-      const number = Math.max(Math.min(+convertColors.value + change, 255), 3);
-      convertColors.value = number;
-      heightsFromImage(number);
+
+    function setConvertColorsNumber() {
+      prompt(`Please set maximum number of colors. <br>An actual number is usually lower and depends on color scheme`, {default: +convertColors.value, step: 1, min: 3, max: 255}, number => {
+        convertColors.value = number;
+        heightsFromImage(number);
+      });
     }
 
     function setOverlayOpacity(v) {
@@ -978,27 +1189,75 @@ function editHeightmap() {
       document.getElementById("canvas").style.opacity = v;
     }
 
-    function closeImageConverter() {
+    function applyConversion() {
+      if (colorsAssigned.childElementCount < 3) return tip("Please do the assignment first", false, "error");
+
+      viewbox
+        .select("#heights")
+        .selectAll("polygon")
+        .each(function () {
+          const height = +this.dataset.height || 0;
+          const i = +this.id.slice(4);
+          grid.cells.h[i] = height;
+        });
+
+      viewbox.select("#heights").selectAll("polygon").remove();
+      updateHeightmap();
+      restoreImageConverterState();
+    }
+
+    function cancelConversion() {
+      restoreImageConverterState();
+      viewbox.select("#heights").selectAll("polygon").remove();
+      restoreHistory(edits.n - 1);
+    }
+
+    function restoreImageConverterState() {
       const canvas = document.getElementById("canvas");
-      if (canvas) canvas.remove(); else return;
+      if (canvas) canvas.remove();
+
+      const image = document.getElementById("imageToConvert");
+      if (image) image.remove();
 
       d3.select("#imageConverter").selectAll("div.color-div").remove();
       colorsAssigned.style.display = "none";
       colorsUnassigned.style.display = "none";
-      colorsSelectValue.innerHTML = "";
+      colorsSelectValue.innerHTML = colorsSelectFriendly.innerHTML = 0;
       viewbox.style("cursor", "default").on(".drag", null);
       tip('Heightmap edit mode is active. Click on "Exit Customization" to finalize the heightmap', true);
+      $("#imageConverter").dialog("destroy");
+      openBrushesPanel();
+    }
 
-      terrs.selectAll("polygon").each(function() {
-        const height = +this.getAttribute("data-height") || 0;
-        const i = +this.id.slice(4);
-        grid.cells.h[i] = height;
+    function closeImageConverter(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      alertMessage.innerHTML = `
+        Are you sure you want to close the Image Converter? 
+        Click "Cancel" to geck back to convertion. 
+        Click "Complete" to apply the conversion. 
+        Click "Close" to exit conversion mode and restore previous heightmap`;
+
+      $("#alert").dialog({
+        resizable: false,
+        title: "Close Image Converter",
+        buttons: {
+          Cancel: function () {
+            $(this).dialog("close");
+          },
+          Complete: function () {
+            $(this).dialog("close");
+            applyConversion();
+          },
+          Close: function () {
+            $(this).dialog("close");
+            restoreImageConverterState();
+            viewbox.select("#heights").selectAll("polygon").remove();
+            restoreHistory(edits.n - 1);
+          }
+        }
       });
-
-      terrs.selectAll("polygon").remove();
-      updateHeightmap();
-    }    
-    
+    }
   }
 
   function toggleHeightmapPreview() {
@@ -1011,7 +1270,8 @@ function editHeightmap() {
     preview.width = grid.cellsX;
     preview.height = grid.cellsY;
     document.body.insertBefore(preview, optionsContainer);
-    preview.addEventListener("mouseover", () => tip("Heightmap preview. Right click and 'Save image as..' to download the image"));
+    preview.addEventListener("mouseover", () => tip("Heightmap preview. Click to download a screen-sized image"));
+    preview.addEventListener("click", downloadPreview);
     drawHeightmapPreview();
   }
 
@@ -1021,78 +1281,36 @@ function editHeightmap() {
 
     grid.cells.h.forEach((height, i) => {
       let h = height < 20 ? Math.max(height / 1.5, 0) : height;
-      const v = h / 100 * 255;
-      imageData.data[i*4] = v;
-      imageData.data[i*4 + 1] = v;
-      imageData.data[i*4 + 2] = v;
-      imageData.data[i*4 + 3] = 255;
+      const v = (h / 100) * 255;
+      imageData.data[i * 4] = v;
+      imageData.data[i * 4 + 1] = v;
+      imageData.data[i * 4 + 2] = v;
+      imageData.data[i * 4 + 3] = 255;
     });
 
     ctx.putImageData(imageData, 0, 0);
   }
 
-  function openPerspectivePanel() {
-    if ($("#perspectivePanel").is(":visible")) return;
-    $("#perspectivePanel").dialog({
-      title: "Perspective View", minHeight: "auto", width: 510, height: 200,
-      position: {my: "center center", at: "center center", of: "svg"}
-    });
+  function downloadPreview() {
+    const preview = document.getElementById("preview");
+    const dataURL = preview.toDataURL("image/png");
 
-    drawPerspective();
+    const img = new Image();
+    img.src = dataURL;
+
+    img.onload = function () {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      canvas.width = svgWidth;
+      canvas.height = svgHeight;
+      document.body.insertBefore(canvas, optionsContainer);
+      ctx.drawImage(img, 0, 0, svgWidth, svgHeight);
+      const imgBig = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.download = getFileName("Heightmap") + ".png";
+      link.href = imgBig;
+      link.click();
+      canvas.remove();
+    };
   }
-
-  function drawPerspective() {
-    const width = 320, height = 180;
-    const wRatio = graphWidth / width, hRatio = graphHeight / height;
-    const lineCount = 320, lineGranularity = 90;
-    const perspective = document.getElementById("perspective");
-    const pContext = perspective.getContext("2d");
-    const lines = [];
-
-    let i = lineCount;
-    while (i--) {
-      const x = i / lineCount * width | 0;
-      const canvasPoints = [];
-      lines.push(canvasPoints);
-      let j = Math.floor(lineGranularity);
-      while (j--) {
-        const y = j / lineGranularity * height | 0;
-        let index = findGridCell(x * wRatio, y * hRatio);
-        let h = grid.cells.h[index] - 20;
-        if (h < 1) h = 0;
-        canvasPoints.push([x, y, h]);
-      }
-    }
-
-    pContext.clearRect(0, 0, perspective.width, perspective.height);
-    for (let canvasPoints of lines) {
-      for (let i = 0; i < canvasPoints.length - 1; i++) {
-        const pt1 = canvasPoints[i];
-        const pt2 = canvasPoints[i + 1];
-        const avHeight = (pt1[2] + pt2[2]) / 200;
-        pContext.beginPath();
-        pContext.moveTo(...transformPt(pt1));
-        pContext.lineTo(...transformPt(pt2));
-        let clr = "rgb(81, 103, 169)"; // water
-        if (avHeight !== 0) {clr = color(1 - avHeight - 0.2);}
-        pContext.strokeStyle = clr;
-        pContext.stroke();
-      }
-      for (let i = 0; i < canvasPoints.length - 1; i++) {
-
-      }
-    }
-  }
-
-  function transformPt(pt) {
-    const width = 320, maxHeight = 0.2;
-    var [x, y] = projectIsometric(pt[0],pt[1]);
-    return [x + width / 2 + 10, y + 10 - pt[2] * maxHeight];
-  }
-
-  function projectIsometric(x, y) {
-    const scale = 1, yProj = 4;
-    return [(x - y) * scale, (x + y) / yProj * scale];
-  }  
-
 }

@@ -1,277 +1,625 @@
-// UI measurers: rulers (linear, curve, area) and Scale Bar
-"use strict";
+class Rulers {
+  constructor() {
+    this.data = [];
+  }
 
-// Linear measurer (one is added by default)
-function addRuler(x1, y1, x2, y2) {
-  const cx = rn((x1 + x2) / 2, 2), cy = rn((y1 + y2) / 2, 2);
-  const size = rn(1 / scale ** .3 * 2, 1);
-  const dash = rn(30 / distanceScale.value, 2);
+  create(Type, points) {
+    const ruler = new Type(points);
+    this.data.push(ruler);
+    return ruler;
+  }
 
-  // body
-  const rulerNew = ruler.append("g").call(d3.drag().on("start", dragRuler));
-  rulerNew.append("line").attr("x1", x1).attr("y1", y1).attr("x2", x2).attr("y2", y2).attr("class", "white").attr("stroke-width", size);
-  rulerNew.append("line").attr("x1", x1).attr("y1", y1).attr("x2", x2).attr("y2", y2).attr("class", "gray").attr("stroke-width", size).attr("stroke-dasharray", dash);
-  rulerNew.append("circle").attr("r", 2 * size).attr("stroke-width", .5 * size).attr("cx", x1).attr("cy", y1).attr("data-edge", "left").call(d3.drag().on("drag", dragRulerEdge));
-  rulerNew.append("circle").attr("r", 2 * size).attr("stroke-width", .5 * size).attr("cx", x2).attr("cy", y2).attr("data-edge", "right").call(d3.drag().on("drag", dragRulerEdge));
+  toString() {
+    return this.data.map(ruler => ruler.toString()).join("; ");
+  }
 
-  // label and center
-  const angle = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
-  const rotate = `rotate(${angle} ${cx} ${cy})`;
-  const dist = rn(Math.hypot(x1 - x2, y1 - y2));
-  const label = rn(dist * distanceScale.value) + " " + distanceUnit.value;
-  rulerNew.append("rect").attr("x", cx - size * 1.5).attr("y", cy - size * 1.5).attr("width", size * 3).attr("height", size * 3).attr("transform", rotate).attr("stroke-width", .5 * size).call(d3.drag().on("start", rulerCenterDrag));
-  rulerNew.append("text").attr("x", cx).attr("y", cy).attr("dx", ".3em").attr("dy", "-.3em").attr("transform", rotate).attr("font-size", 10 * size).text(label).on("click", removeParent);
+  fromString(string) {
+    this.data = [];
+
+    const rulers = string.split("; ");
+    for (const rulerString of rulers) {
+      const [type, pointsString] = rulerString.split(": ");
+      const points = pointsString.split(" ").map(el => el.split(",").map(n => +n));
+      const Type = type === "Ruler" ? Ruler : type === "Opisometer" ? Opisometer : type === "RouteOpisometer" ? RouteOpisometer : type === "Planimeter" ? Planimeter : null;
+      this.create(Type, points);
+    }
+  }
+
+  draw() {
+    this.data.forEach(ruler => ruler.draw());
+  }
+
+  undraw() {
+    this.data.forEach(ruler => ruler.undraw());
+  }
+
+  remove(id) {
+    if (id === undefined) return;
+
+    const ruler = this.data.find(ruler => ruler.id === id);
+    ruler.undraw();
+    const rulerIndex = this.data.indexOf(ruler);
+    rulers.data.splice(rulerIndex, 1);
+  }
 }
 
-function dragRuler() {
-  const tr = parseTransform(this.getAttribute("transform"));
-  const x = +tr[0] - d3.event.x, y = +tr[1] - d3.event.y;
+class Measurer {
+  constructor(points) {
+    this.points = points;
+    this.id = rulers.data.length;
+  }
 
-  d3.event.on("drag", function() {
-    const transform = `translate(${(x + d3.event.x)},${(y + d3.event.y)})`;
-    this.setAttribute("transform", transform);
-  });
+  toString() {
+    return this.constructor.name + ": " + this.points.join(" ");
+  }
+
+  getSize() {
+    return rn((1 / scale ** 0.3) * 2, 2);
+  }
+
+  getDash() {
+    return rn(30 / distanceScaleInput.value, 2);
+  }
+
+  drag() {
+    const tr = parseTransform(this.getAttribute("transform"));
+    const x = +tr[0] - d3.event.x,
+      y = +tr[1] - d3.event.y;
+
+    d3.event.on("drag", function () {
+      const transform = `translate(${x + d3.event.x},${y + d3.event.y})`;
+      this.setAttribute("transform", transform);
+    });
+  }
+
+  addPoint(point) {
+    const MIN_DIST = d3.event.sourceEvent.shiftKey ? 9 : 100;
+    const prev = last(this.points);
+    point = [point[0] | 0, point[1] | 0];
+    const dist2 = (prev[0] - point[0]) ** 2 + (prev[1] - point[1]) ** 2;
+    if (dist2 < MIN_DIST) return;
+    this.points.push(point);
+    this.updateCurve();
+    this.updateLabel();
+  }
+
+  optimize() {
+    const MIN_DIST2 = 900;
+    const optimized = [];
+
+    for (let i = 0, p1 = this.points[0]; i < this.points.length; i++) {
+      const p2 = this.points[i];
+      const dist2 = !i || i === this.points.length - 1 ? Infinity : (p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2;
+      if (dist2 < MIN_DIST2) continue;
+      optimized.push(p2);
+      p1 = p2;
+    }
+
+    this.points = optimized;
+    this.updateCurve();
+    this.updateLabel();
+  }
+
+  undraw() {
+    this.el?.remove();
+  }
 }
 
-function dragRulerEdge() {
-  const ruler = d3.select(this.parentNode);
-  const x = d3.event.x, y = d3.event.y;
+class Ruler extends Measurer {
+  constructor(points) {
+    super(points);
+  }
 
-  d3.select(this).attr("cx", x).attr("cy", y);
-  const line = ruler.selectAll("line");
-  const left = this.dataset.edge === "left";
-  const x0 = left ? +line.attr("x2") : +line.attr("x1");
-  const y0 = left ? +line.attr("y2") : +line.attr("y1");
-  if (left) line.attr("x1", x).attr("y1", y); else line.attr("x2", x).attr("y2", y);
+  getPointsString() {
+    return this.points.join(" ");
+  }
 
-  const cx = rn((x + x0) / 2, 2), cy = rn((y + y0) / 2, 2);
-  const dist = Math.hypot(x0 - x, y0 - y);
-  const label = rn(dist * distanceScale.value) + " " + distanceUnit.value;
-  const atan = x0 > x ? Math.atan2(y0 - y, x0 - x) : Math.atan2(y - y0, x - x0);
-  const angle = rn(atan * 180 / Math.PI, 3);
-  const rotate = `rotate(${angle} ${cx} ${cy})`;
+  updatePoint(index, x, y) {
+    this.points[index] = [x, y];
+  }
 
-  const size = rn(1 / scale ** .3 * 2, 1);
-  ruler.select("rect").attr("x", cx - size * 1.5).attr("y", cy - size * 1.5).attr("transform", rotate);
-  ruler.select("text").attr("x", cx).attr("y", cy).attr("transform", rotate).text(label);
+  getPointId(x, y) {
+    return this.points.findIndex(el => el[0] == x && el[1] == y);
+  }
+
+  pushPoint(i) {
+    const [x, y] = this.points[i];
+    i ? this.points.push([x, y]) : this.points.unshift([x, y]);
+  }
+
+  draw() {
+    if (this.el) this.el.selectAll("*").remove();
+    const points = this.getPointsString();
+    const size = this.getSize();
+    const dash = this.getDash();
+
+    const el = (this.el = ruler
+      .append("g")
+      .attr("class", "ruler")
+      .call(d3.drag().on("start", this.drag))
+      .attr("font-size", 10 * size));
+    el.append("polyline")
+      .attr("points", points)
+      .attr("class", "white")
+      .attr("stroke-width", size)
+      .call(d3.drag().on("start", () => this.addControl(this)));
+    el.append("polyline")
+      .attr("points", points)
+      .attr("class", "gray")
+      .attr("stroke-width", rn(size * 1.2, 2))
+      .attr("stroke-dasharray", dash);
+    el.append("g")
+      .attr("class", "rulerPoints")
+      .attr("stroke-width", 0.5 * size)
+      .attr("font-size", 2 * size);
+    el.append("text")
+      .attr("dx", ".35em")
+      .attr("dy", "-.45em")
+      .on("click", () => rulers.remove(this.id));
+    this.drawPoints(el);
+    this.updateLabel();
+    return this;
+  }
+
+  drawPoints(el) {
+    const g = el.select(".rulerPoints");
+    g.selectAll("circle").remove();
+
+    for (let i = 0; i < this.points.length; i++) {
+      const [x, y] = this.points[i];
+      this.drawPoint(g, x, y, i);
+    }
+  }
+
+  drawPoint(el, x, y, i) {
+    const context = this;
+    el.append("circle")
+      .attr("r", "1em")
+      .attr("cx", x)
+      .attr("cy", y)
+      .attr("class", this.isEdge(i) ? "edge" : "control")
+      .on("click", function () {
+        context.removePoint(context, i);
+      })
+      .call(
+        d3
+          .drag()
+          .clickDistance(3)
+          .on("start", function () {
+            context.dragControl(context, i);
+          })
+      );
+  }
+
+  isEdge(i) {
+    return i === 0 || i === this.points.length - 1;
+  }
+
+  updateLabel() {
+    const length = this.getLength();
+    const text = rn(length * distanceScaleInput.value) + " " + distanceUnitInput.value;
+    const [x, y] = last(this.points);
+    this.el.select("text").attr("x", x).attr("y", y).text(text);
+  }
+
+  getLength() {
+    let length = 0;
+    for (let i = 0; i < this.points.length - 1; i++) {
+      const [x1, y1] = this.points[i];
+      const [x2, y2] = this.points[i + 1];
+      length += Math.hypot(x1 - x2, y1 - y2);
+    }
+    return length;
+  }
+
+  dragControl(context, pointId) {
+    let addPoint = context.isEdge(pointId) && d3.event.sourceEvent.ctrlKey;
+    let circle = context.el.select(`circle:nth-child(${pointId + 1})`);
+    const line = context.el.selectAll("polyline");
+
+    let x0 = rn(d3.event.x, 1);
+    let y0 = rn(d3.event.y, 1);
+    let axis;
+
+    d3.event.on("drag", function () {
+      if (addPoint) {
+        if (d3.event.dx < 0.1 && d3.event.dy < 0.1) return;
+        context.pushPoint(pointId);
+        context.drawPoints(context.el);
+        if (pointId) pointId++;
+        circle = context.el.select(`circle:nth-child(${pointId + 1})`);
+        addPoint = false;
+      }
+
+      const shiftPressed = d3.event.sourceEvent.shiftKey;
+      if (shiftPressed && !axis) axis = Math.abs(d3.event.dx) > Math.abs(d3.event.dy) ? "x" : "y";
+
+      const x = axis === "y" ? x0 : rn(d3.event.x, 1);
+      const y = axis === "x" ? y0 : rn(d3.event.y, 1);
+
+      if (!shiftPressed) {
+        axis = null;
+        x0 = x;
+        y0 = y;
+      }
+
+      context.updatePoint(pointId, x, y);
+      line.attr("points", context.getPointsString());
+      circle.attr("cx", x).attr("cy", y);
+      context.updateLabel();
+    });
+  }
+
+  addControl(context) {
+    const x = rn(d3.event.x, 1);
+    const y = rn(d3.event.y, 1);
+    const pointId = getSegmentId(context.points, [x, y]);
+
+    context.points.splice(pointId, 0, [x, y]);
+    context.drawPoints(context.el);
+    context.dragControl(context, pointId);
+  }
+
+  removePoint(context, pointId) {
+    if (this.points.length < 3) return;
+    this.points.splice(pointId, 1);
+    context.draw();
+  }
 }
 
-function rulerCenterDrag() {
-  let xc1, yc1, xc2, yc2, r1, r2;
-  const rulerOld = d3.select(this.parentNode); // current ruler
-  let x = d3.event.x, y = d3.event.y; // current coords
-  const line = rulerOld.selectAll("line"); // current lines
-  const x1 = +line.attr("x1"), y1 = +line.attr("y1"), x2 = +line.attr("x2"), y2 = +line.attr("y2"); // initial line edge points
-  const size = rn(1 / scale ** .3 * 2, 1);
-  const dash = +rulerOld.select(".gray").attr("stroke-dasharray");
+class Opisometer extends Measurer {
+  constructor(points) {
+    super(points);
+  }
 
-  const rulerNew = ruler.insert("g", ":first-child");
-  rulerNew.attr("transform", rulerOld.attr("transform")).call(d3.drag().on("start", dragRuler));
-  rulerNew.append("line").attr("class", "white").attr("stroke-width", size);
-  rulerNew.append("line").attr("class", "gray").attr("stroke-dasharray", dash).attr("stroke-width", size);
-  rulerNew.append("text").attr("dx", ".3em").attr("dy", "-.3em").on("click", removeParent).attr("font-size", 10 * size).attr("stroke-width", size);
+  draw() {
+    if (this.el) this.el.selectAll("*").remove();
+    const size = this.getSize();
+    const dash = this.getDash();
+    const context = this;
 
-  d3.event.on("drag", function() {
-    x = d3.event.x, y = d3.event.y;
+    const el = (this.el = ruler
+      .append("g")
+      .attr("class", "opisometer")
+      .call(d3.drag().on("start", this.drag))
+      .attr("font-size", 10 * size));
+    el.append("path").attr("class", "white").attr("stroke-width", size);
+    el.append("path").attr("class", "gray").attr("stroke-width", size).attr("stroke-dasharray", dash);
+    const rulerPoints = el
+      .append("g")
+      .attr("class", "rulerPoints")
+      .attr("stroke-width", 0.5 * size)
+      .attr("font-size", 2 * size);
+    rulerPoints
+      .append("circle")
+      .attr("r", "1em")
+      .call(
+        d3.drag().on("start", function () {
+          context.dragControl(context, 0);
+        })
+      );
+    rulerPoints
+      .append("circle")
+      .attr("r", "1em")
+      .call(
+        d3.drag().on("start", function () {
+          context.dragControl(context, 1);
+        })
+      );
+    el.append("text")
+      .attr("dx", ".35em")
+      .attr("dy", "-.45em")
+      .on("click", () => rulers.remove(this.id));
 
-    // change first part
-    let dist = rn(Math.hypot(x1 - x, y1 - y));
-    let label = rn(dist * distanceScale.value) + " " + distanceUnit.value;
-    let atan = x1 > x ? Math.atan2(y1 - y, x1 - x) : Math.atan2(y - y1, x - x1);
-    xc1 = rn((x + x1) / 2, 2), yc1 = rn((y + y1) / 2, 2);
-    r1 = `rotate(${rn(atan * 180 / Math.PI, 3)} ${xc1} ${yc1})`;
-    line.attr("x1", x1).attr("y1", y1).attr("x2", x).attr("y2", y);
-    rulerOld.select("rect").attr("x", x - size * 1.5).attr("y", y - size * 1.5).attr("transform", null);
-    rulerOld.select("text").attr("x", xc1).attr("y", yc1).attr("transform", r1).text(label);
+    this.updateCurve();
+    this.updateLabel();
+    return this;
+  }
 
-    // change second (new) part
-    dist = rn(Math.hypot(x2 - x, y2 - y));
-    label = rn(dist * distanceScale.value) + " " + distanceUnit.value;
-    atan = x2 > x ? Math.atan2(y2 - y, x2 - x) : Math.atan2(y - y2, x - x2);
-    xc2 = rn((x + x2) / 2, 2), yc2 = rn((y + y2) / 2, 2);
-    r2 = `rotate(${rn(atan * 180 / Math.PI, 3)} ${xc2} ${yc2})`;
-    rulerNew.selectAll("line").attr("x1", x).attr("y1", y).attr("x2", x2).attr("y2", y2);
-    rulerNew.select("text").attr("x", xc2).attr("y", yc2).attr("transform", r2).text(label);
-  });
+  updateCurve() {
+    lineGen.curve(d3.curveCatmullRom.alpha(0.5));
+    const path = round(lineGen(this.points));
+    this.el.selectAll("path").attr("d", path);
 
-  d3.event.on("end", function() {
-    // contols for 1st part
-    rulerOld.select("circle[data-edge='left']").attr("cx", x1).attr("cy", y1);
-    rulerOld.select("circle[data-edge='right']").attr("cx", x).attr("cy", y);
-    rulerOld.select("rect").attr("x", xc1 - size * 1.5).attr("y", yc1 - size * 1.5).attr("transform", r1);
+    const left = this.points[0];
+    const right = last(this.points);
+    this.el.select(".rulerPoints > circle:first-child").attr("cx", left[0]).attr("cy", left[1]);
+    this.el.select(".rulerPoints > circle:last-child").attr("cx", right[0]).attr("cy", right[1]);
+  }
 
-    // contols for 2nd part
-    rulerNew.append("circle").attr("cx", x).attr("cy", y).attr("r", 2 * size).attr("stroke-width", 0.5 * size).attr("data-edge", "left").call(d3.drag().on("drag", dragRulerEdge));
-    rulerNew.append("circle").attr("cx", x2).attr("cy", y2).attr("r", 2 * size).attr("stroke-width", 0.5 * size).attr("data-edge", "right").call(d3.drag().on("drag", dragRulerEdge));
-    rulerNew.append("rect").attr("x", xc2 - size * 1.5).attr("y", yc2 - size * 1.5).attr("width", size * 3).attr("height", size * 3).attr("transform", r2).attr("stroke-width", .5 * size).call(d3.drag().on("start", rulerCenterDrag));
-  });
+  updateLabel() {
+    const length = this.el.select("path").node().getTotalLength();
+    const text = rn(length * distanceScaleInput.value) + " " + distanceUnitInput.value;
+    const [x, y] = last(this.points);
+    this.el.select("text").attr("x", x).attr("y", y).text(text);
+  }
+
+  dragControl(context, rigth) {
+    const MIN_DIST = d3.event.sourceEvent.shiftKey ? 9 : 100;
+    let prev = rigth ? last(context.points) : context.points[0];
+
+    d3.event.on("drag", function () {
+      const point = [d3.event.x | 0, d3.event.y | 0];
+
+      const dist2 = (prev[0] - point[0]) ** 2 + (prev[1] - point[1]) ** 2;
+      if (dist2 < MIN_DIST) return;
+
+      rigth ? context.points.push(point) : context.points.unshift(point);
+      prev = point;
+
+      context.updateCurve();
+      context.updateLabel();
+    });
+
+    d3.event.on("end", function () {
+      if (!d3.event.sourceEvent.shiftKey) context.optimize();
+    });
+  }
 }
 
-function drawOpisometer() {
-  lineGen.curve(d3.curveBasis);
-  const size = rn(1 / scale ** .3 * 2, 1);
-  const dash = rn(30 / distanceScale.value, 2);
-  const p0 = d3.mouse(this);
-  const points = [[p0[0], p0[1]]];
-  let length = 0;
+class RouteOpisometer extends Measurer {
+  constructor(points) {
+    super(points);
+    if (pack.cells) {
+      this.cellStops = points.map(p => findCell(p[0], p[1]));
+    } else {
+      this.cellStops = null;
+    }
+  }
 
-  const rulerNew = ruler.append("g").call(d3.drag().on("start", dragRuler));
-  const curve = rulerNew.append("path").attr("class", "white").attr("stroke-width", size);
-  const curveGray = rulerNew.append("path").attr("class", "gray").attr("stroke-width", size).attr("stroke-dasharray", dash);
-  const text = rulerNew.append("text").attr("dy", "-.3em").attr("font-size", 10 * size).on("click", removeParent);
-  const start = rulerNew.append("circle").attr("r", 2 * size).attr("stroke-width", .5 * size).attr("data-edge", "start").call(d3.drag().on("start", dragOpisometerEnd));
-  const end = rulerNew.append("circle").attr("r", 2 * size).attr("stroke-width", .5 * size).attr("data-edge", "end").call(d3.drag().on("start", dragOpisometerEnd));
+  checkCellStops() {
+    if (!this.cellStops) {
+      this.cellStops = this.points.map(p => findCell(p[0], p[1]));
+    }
+  }
 
-  d3.event.on("drag", function() {
-    const p = d3.mouse(this);
-    const diff = Math.hypot(last(points)[0] - p[0], last(points)[1] - p[1]);
-    if (diff > 3) points.push([p[0], p[1]]); else return;
+  trackCell(cell, rigth) {
+    this.checkCellStops();
+    const cellStops = this.cellStops;
+    const foundIndex = cellStops.indexOf(cell);
+    if (rigth) {
+      if (last(cellStops) === cell) {
+        return;
+      } else if (cellStops.length > 1 && foundIndex != -1) {
+        cellStops.splice(foundIndex + 1);
+        this.points.splice(foundIndex + 1);
+      } else {
+        cellStops.push(cell);
+        this.points.push(this.getCellRouteCoord(cell));
+      }
+    } else {
+      if (cellStops[0] === cell) {
+        return;
+      } else if (cellStops.length > 1 && foundIndex != -1) {
+        cellStops.splice(0, foundIndex);
+        this.points.splice(0, foundIndex);
+      } else {
+        cellStops.unshift(cell);
+        this.points.unshift(this.getCellRouteCoord(cell));
+      }
+    }
+    this.updateCurve();
+    this.updateLabel();
+  }
 
-    const path = round(lineGen(points));
-    curve.attr("d", path);
-    curveGray.attr("d", path);
-    length = curve.node().getTotalLength();
-    const label = rn(length * distanceScale.value) + " " + distanceUnit.value;
-    text.attr("x", p[0]).attr("y", p[1]).text(label);
-  });
+  getCellRouteCoord(c) {
+    const cells = pack.cells;
+    const burgs = pack.burgs;
+    const b = cells.burg[c];
+    const x = b ? burgs[b].x : cells.p[c][0];
+    const y = b ? burgs[b].y : cells.p[c][1];
+    return [x, y];
+  }
 
-  d3.event.on("end", function() {
-    restoreDefaultEvents();
-    clearMainTip();
-    addOpisometer.classList.remove("pressed");
+  draw() {
+    if (this.el) this.el.selectAll("*").remove();
+    const size = this.getSize();
+    const dash = this.getDash();
+    const context = this;
 
-    const c = curve.node().getPointAtLength(length / 2);
-    const p = curve.node().getPointAtLength(length / 2 - 1);
-    const atan = p.x > c.x ? Math.atan2(p.y - c.y, p.x - c.x) : Math.atan2(c.y - p.y, c.x - p.x);
-    const angle = rn(atan * 180 / Math.PI, 3);
-    const rotate = `rotate(${angle} ${c.x} ${c.y})`;
+    const el = (this.el = ruler
+      .append("g")
+      .attr("class", "opisometer")
+      .attr("font-size", 10 * size));
+    el.append("path").attr("class", "white").attr("stroke-width", size);
+    el.append("path").attr("class", "gray").attr("stroke-width", size).attr("stroke-dasharray", dash);
+    const rulerPoints = el
+      .append("g")
+      .attr("class", "rulerPoints")
+      .attr("stroke-width", 0.5 * size)
+      .attr("font-size", 2 * size);
+    rulerPoints
+      .append("circle")
+      .attr("r", "1em")
+      .call(
+        d3.drag().on("start", function () {
+          context.dragControl(context, 0);
+        })
+      );
+    rulerPoints
+      .append("circle")
+      .attr("r", "1em")
+      .call(
+        d3.drag().on("start", function () {
+          context.dragControl(context, 1);
+        })
+      );
+    el.append("text")
+      .attr("dx", ".35em")
+      .attr("dy", "-.45em")
+      .on("click", () => rulers.remove(this.id));
 
-    rulerNew.attr("data-points", JSON.stringify(points));
-    text.attr("x", c.x).attr("y", c.y).attr("transform", rotate);
-    start.attr("cx", points[0][0]).attr("cy", points[0][1]);
-    end.attr("cx", last(points)[0]).attr("cy", last(points)[1]);
-  });
+    this.updateCurve();
+    this.updateLabel();
+    return this;
+  }
+
+  updateCurve() {
+    lineGen.curve(d3.curveCatmullRom.alpha(0.5));
+    const path = round(lineGen(this.points));
+    this.el.selectAll("path").attr("d", path);
+
+    const left = this.points[0];
+    const right = last(this.points);
+    this.el.select(".rulerPoints > circle:first-child").attr("cx", left[0]).attr("cy", left[1]);
+    this.el.select(".rulerPoints > circle:last-child").attr("cx", right[0]).attr("cy", right[1]);
+  }
+
+  updateLabel() {
+    const length = this.el.select("path").node().getTotalLength();
+    const text = rn(length * distanceScaleInput.value) + " " + distanceUnitInput.value;
+    const [x, y] = last(this.points);
+    this.el.select("text").attr("x", x).attr("y", y).text(text);
+  }
+
+  dragControl(context, rigth) {
+    d3.event.on("drag", function () {
+      const mousePoint = [d3.event.x | 0, d3.event.y | 0];
+      const cells = pack.cells;
+
+      const c = findCell(mousePoint[0], mousePoint[1]);
+      if (!cells.road[c] && !d3.event.sourceEvent.shiftKey) {
+        return;
+      }
+
+      context.trackCell(c, rigth);
+    });
+  }
 }
 
-function dragOpisometerEnd() {
-  const ruler = d3.select(this.parentNode);
-  const curve = ruler.select(".white");
-  const curveGray = ruler.select(".gray");
-  const text = ruler.select("text");
+class Planimeter extends Measurer {
+  constructor(points) {
+    super(points);
+  }
 
-  const points = JSON.parse(ruler.attr("data-points"));
-  const x0 = +this.getAttribute("cx"), y0 = +this.getAttribute("cy");
-  if (x0 === points[0][0] && y0 === points[0][1]) points.reverse();
-  lineGen.curve(d3.curveBasis);
-  let length = 0;
+  draw() {
+    if (this.el) this.el.selectAll("*").remove();
+    const size = this.getSize();
 
-  d3.event.on("drag", function() {
-    const p = d3.mouse(this);
-    d3.select(this).attr("cx", p[0]).attr("cy", p[1]);
+    const el = (this.el = ruler
+      .append("g")
+      .attr("class", "planimeter")
+      .call(d3.drag().on("start", this.drag))
+      .attr("font-size", 10 * size));
+    el.append("path").attr("class", "planimeter").attr("stroke-width", size);
+    el.append("text").on("click", () => rulers.remove(this.id));
 
-    const diff = Math.hypot(last(points)[0] - p[0], last(points)[1] - p[1]);
-    if (diff > 3) points.push([p[0], p[1]]); else return;
+    this.updateCurve();
+    this.updateLabel();
+    return this;
+  }
 
-    const path = round(lineGen(points));
-    curve.attr("d", path);
-    curveGray.attr("d", path);
-    length = curve.node().getTotalLength();
-    const label = rn(length * distanceScale.value) + " " + distanceUnit.value;
-    text.text(label);
-  });
+  updateCurve() {
+    lineGen.curve(d3.curveCatmullRomClosed.alpha(0.5));
+    const path = round(lineGen(this.points));
+    this.el.selectAll("path").attr("d", path);
+  }
 
-  d3.event.on("end", function() {
-    const c = curve.node().getPointAtLength(length / 2);
-    const p = curve.node().getPointAtLength(length / 2 - 1);
-    const atan = p.x > c.x ? Math.atan2(p.y - c.y, p.x - c.x) : Math.atan2(c.y - p.y, c.x - p.x);
-    const angle = rn(atan * 180 / Math.PI, 3);
-    const rotate = `rotate(${angle} ${c.x} ${c.y})`;
+  updateLabel() {
+    if (this.points.length < 3) return;
 
-    ruler.attr("data-points", JSON.stringify(points));
-    text.attr("x", c.x).attr("y", c.y).attr("transform", rotate);
-  });
+    const polygonArea = rn(Math.abs(d3.polygonArea(this.points)));
+    const unit = areaUnit.value === "square" ? " " + distanceUnitInput.value + "²" : " " + areaUnit.value;
+    const area = si(polygonArea * distanceScaleInput.value ** 2) + " " + unit;
+    const c = polylabel([this.points], 1.0);
+    this.el.select("text").attr("x", c[0]).attr("y", c[1]).text(area);
+  }
 }
 
-function drawPlanimeter() {
-  lineGen.curve(d3.curveBasisClosed);
-  const size = rn(1 / scale ** .3 * 2, 1);
-  const p0 = d3.mouse(this);
-  const points = [[p0[0], p0[1]]];
-
-  const rulerNew = ruler.append("g").call(d3.drag().on("start", dragRuler));
-  const curve = rulerNew.append("path").attr("class", "planimeter").attr("stroke-width", size);
-  const text = rulerNew.append("text").attr("font-size", 10 * size).on("click", removeParent);
-
-  d3.event.on("drag", function() {
-    const p = d3.mouse(this);
-    const diff = Math.hypot(last(points)[0] - p[0], last(points)[1] - p[1]);
-    if (diff > 5) points.push([p[0], p[1]]); else return;
-    curve.attr("d", round(lineGen(points)));
-  });
-
-  d3.event.on("end", function() {
-    restoreDefaultEvents();
-    clearMainTip();
-    addPlanimeter.classList.remove("pressed");
-
-    const polygonArea = rn(Math.abs(d3.polygonArea(points)));
-    const unit = areaUnit.value === "square" ? " " + distanceUnit.value + "²" : " " + areaUnit.value;
-    const area = si(polygonArea * distanceScale.value ** 2) + " " + unit;
-    const c = polylabel([points], 1.0); // pole of inaccessibility
-    text.attr("x", c[0]).attr("y", c[1]).text(area);
-  });
-}
-
-// draw default scale bar
+// Scale bar
 function drawScaleBar() {
   if (scaleBar.style("display") === "none") return; // no need to re-draw hidden element
   scaleBar.selectAll("*").remove(); // fully redraw every time
 
-  const dScale = distanceScale.value;
-  const unit = distanceUnit.value;
+  const dScale = distanceScaleInput.value;
+  const unit = distanceUnitInput.value;
 
   // calculate size
   const init = 100; // actual length in pixels if scale, dScale and size = 1;
-  const size = +barSize.value;
-  let val = init * size * dScale / scale; // bar length in distance unit
-  if (val > 900) val = rn(val, -3); // round to 1000
-  else if (val > 90) val = rn(val, -2); // round to 100
-  else if (val > 9) val = rn(val, -1); // round to 10
-  else val = rn(val) // round to 1
-  const l = val * scale / dScale; // actual length in pixels on this scale
-  
-  scaleBar.append("line").attr("x1", 0.5).attr("y1", 0).attr("x2", l+size-0.5).attr("y2", 0).attr("stroke-width", size).attr("stroke", "white");
-  scaleBar.append("line").attr("x1", 0).attr("y1", size).attr("x2", l+size).attr("y2", size).attr("stroke-width", size).attr("stroke", "#3d3d3d");
+  const size = +barSizeInput.value;
+  let val = (init * size * dScale) / scale; // bar length in distance unit
+  if (val > 900) val = rn(val, -3);
+  // round to 1000
+  else if (val > 90) val = rn(val, -2);
+  // round to 100
+  else if (val > 9) val = rn(val, -1);
+  // round to 10
+  else val = rn(val); // round to 1
+  const l = (val * scale) / dScale; // actual length in pixels on this scale
+
+  scaleBar
+    .append("line")
+    .attr("x1", 0.5)
+    .attr("y1", 0)
+    .attr("x2", l + size - 0.5)
+    .attr("y2", 0)
+    .attr("stroke-width", size)
+    .attr("stroke", "white");
+  scaleBar
+    .append("line")
+    .attr("x1", 0)
+    .attr("y1", size)
+    .attr("x2", l + size)
+    .attr("y2", size)
+    .attr("stroke-width", size)
+    .attr("stroke", "#3d3d3d");
   const dash = size + " " + rn(l / 5 - size, 2);
-  scaleBar.append("line").attr("x1", 0).attr("y1", 0).attr("x2", l+size).attr("y2", 0)
-    .attr("stroke-width", rn(size * 3, 2)).attr("stroke-dasharray", dash).attr("stroke", "#3d3d3d");
+  scaleBar
+    .append("line")
+    .attr("x1", 0)
+    .attr("y1", 0)
+    .attr("x2", l + size)
+    .attr("y2", 0)
+    .attr("stroke-width", rn(size * 3, 2))
+    .attr("stroke-dasharray", dash)
+    .attr("stroke", "#3d3d3d");
 
   const fontSize = rn(5 * size, 1);
-  scaleBar.selectAll("text").data(d3.range(0,6)).enter().append("text")
-    .attr("x", d => rn(d * l/5, 2)).attr("y", 0).attr("dy", "-.5em")
-    .attr("font-size", fontSize).text(d => rn(d * l/5 * dScale / scale) + (d<5 ? "" : " " + unit));
+  scaleBar
+    .selectAll("text")
+    .data(d3.range(0, 6))
+    .enter()
+    .append("text")
+    .attr("x", d => rn((d * l) / 5, 2))
+    .attr("y", 0)
+    .attr("dy", "-.5em")
+    .attr("font-size", fontSize)
+    .text(d => rn((((d * l) / 5) * dScale) / scale) + (d < 5 ? "" : " " + unit));
 
   if (barLabel.value !== "") {
-    scaleBar.append("text").attr("x", (l+1) / 2).attr("y", 2 * size)
+    scaleBar
+      .append("text")
+      .attr("x", (l + 1) / 2)
+      .attr("y", 2 * size)
       .attr("dominant-baseline", "text-before-edge")
-      .attr("font-size", fontSize).text(barLabel.value);
+      .attr("font-size", fontSize)
+      .text(barLabel.value);
   }
 
   const bbox = scaleBar.node().getBBox();
   // append backbround rectangle
-  scaleBar.insert("rect", ":first-child").attr("x", -10).attr("y", -20).attr("width", bbox.width + 10).attr("height", bbox.height + 15)
-    .attr("stroke-width", size).attr("stroke", "none").attr("filter", "url(#blur5)")
-    .attr("fill", barBackColor.value).attr("opacity", +barBackOpacity.value);
+  scaleBar
+    .insert("rect", ":first-child")
+    .attr("x", -10)
+    .attr("y", -20)
+    .attr("width", bbox.width + 10)
+    .attr("height", bbox.height + 15)
+    .attr("stroke-width", size)
+    .attr("stroke", "none")
+    .attr("filter", "url(#blur5)")
+    .attr("fill", barBackColor.value)
+    .attr("opacity", +barBackOpacity.value);
 
   fitScaleBar();
 }
 
-// fit ScaleBar to map size
+// fit ScaleBar to canvas size
 function fitScaleBar() {
-  if (!scaleBar.select("rect").size()) return;
-  const px = isNaN(+barPosX.value) ? 100 : barPosX.value / 100;
-  const py = isNaN(+barPosY.value) ? 100 : barPosY.value / 100;
+  if (!scaleBar.select("rect").size() || scaleBar.style("display") === "none") return;
+  const px = isNaN(+barPosX.value) ? 0.99 : barPosX.value / 100;
+  const py = isNaN(+barPosY.value) ? 0.99 : barPosY.value / 100;
   const bbox = scaleBar.select("rect").node().getBBox();
-  const x = rn(svgWidth * px - bbox.width + 10), y = rn(svgHeight * py - bbox.height + 20);
+  const x = rn(svgWidth * px - bbox.width + 10),
+    y = rn(svgHeight * py - bbox.height + 20);
   scaleBar.attr("transform", `translate(${x},${y})`);
 }
