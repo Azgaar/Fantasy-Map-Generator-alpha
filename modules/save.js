@@ -443,13 +443,11 @@ function saveToDropbox() {
   const URL = "data:text/plain; base64," + btoa(encodeURIComponent(mapData));
   const filename = getFileName() + ".map";
   const options = {
-    success: function (data) {
-      console.log(data);
-      alert("Success! Files saved to your Dropbox.");
-    },
-    progress: function (progress) {},
-    cancel: function () {},
-    error: function (errorMessage) {}
+    success: () => tip("Map is saved to your Dropbox", true, "success", 8000),
+    error: function (errorMessage) {
+      tip("Cannot save .map to your Dropbox", true, "error", 8000);
+      console.error(errorMessage);
+    }
   };
   Dropbox.save(URL, filename, options);
 }
@@ -461,12 +459,12 @@ function createSharableDropboxLink() {
   const options = {
     success: function (files) {
       const url = files[0].link;
-      const host = window.location.host;
-      const link = `https://${host}/?maplink=${url}`;
-      const displayLink = link.slice(0, 50) + "...";
+      const fmg = window.location.href.split("?")[0];
+      const link = `https://${fmg}/?maplink=${url}`;
+      const shortLink = link.slice(0, 50) + "...";
 
       sharableLinkContainer.style.display = "block";
-      sharableLink.innerText = displayLink;
+      sharableLink.innerText = shortLink;
       sharableLink.setAttribute("href", link);
     },
     linkType: "direct",

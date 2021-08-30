@@ -673,7 +673,7 @@ function showSavePane() {
 
 function copyLinkToClickboard() {
   const shrableLink = document.getElementById("sharableLink");
-  const link = shrableLink.innerText;
+  const link = shrableLink.getAttribute("href");
   navigator.clipboard.writeText(link).then(() => tip("Link is copied to the clipboard", true, "success", 8000));
 }
 
