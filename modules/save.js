@@ -460,7 +460,7 @@ function createSharableDropboxLink() {
     success: function (files) {
       const url = files[0].link;
       const fmg = window.location.href.split("?")[0];
-      const link = `https://${fmg}/?maplink=${url}`;
+      const link = `${fmg}/?maplink=${url}`;
       const shortLink = link.slice(0, 50) + "...";
 
       sharableLinkContainer.style.display = "block";
